@@ -4,7 +4,7 @@
 
 An interactive systems design study simulating emergency mesh network topology design and crisis response under failure cascades. Build a network topology, run a crisis simulation, analyze outcomes.
 
-## 🎯 What is NEXUS?
+## What is NEXUS?
 
 NEXUS explores the design constraints of decentralized communication infrastructure when centralized systems fail. You design a mesh topology under budget, then stress-test it against cascading failures, misinfo propagation, and battery depletion.
 
@@ -13,7 +13,7 @@ Three acts:
 **Act II: Crisis** - Run a simulated emergency. Watch your topology fail under stress. Predict outcomes. Make real-time decisions.
 **Act III: Analysis** - Compare designs side-by-side. Get topology-specific insights. Explore counterfactuals.
 
-## ✨ Features
+## Features
 
 - **Guided tutorial** - 5-step onboarding explains nodes, budget, crisis mechanics.
 - **Difficulty modes** - Mild / Moderate / Severe (changes failure rates, message volume, battery drain).
@@ -25,11 +25,11 @@ Three acts:
 - **Interactive counterfactuals** - "What if +1 relay?" "What if strict verification?" Estimate outcomes.
 - **Decision journal** - All placement, save, and priority decisions logged with impact notes.
 
-## 🚀 Live Demo
+## Live Demo
 
 [**Play NEXUS**](https://nexus-git-main-wsup.vercel.app/)
 
-## 🎮 How to Play
+## How to Play
 
 1. **Place nodes** — select node type (device, node, relay, shelter) and click the grid. Each has different cost, bandwidth, range, battery.
 2. **Check coverage** — must reach 40% grid coverage to unlock crisis simulation
@@ -39,7 +39,7 @@ Three acts:
 6. **Analyze** — see topology-specific insights, decision impact, and counterfactuals
 7. **Compare** — save the results as Design B, run a second topology, compare side-by-side
 
-## 🏗️ Architecture
+## Architecture
 
 Single-file HTML/CSS/JavaScript. No dependencies, no build step.
 
@@ -48,7 +48,7 @@ Single-file HTML/CSS/JavaScript. No dependencies, no build step.
 - **Dynamic difficulty** — adjusts failure rates, latency, battery drain.
 - **Persistent state** — undo stack, design saves, prediction tracking.
 
-## 📌 Project Context
+## Project Context
 
 Goal was to build a teaching tool that makes systems design constraints visible through play. Developed iteratively: V2 (base), V3 (polish + accessibility), V4 - the current active one, (full feature set with comparison, prediction, analysis).
 

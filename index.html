@@ -1,0 +1,2374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEXUS V4 // Emergency Communication Infrastructure</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ─── RESET & ROOT ─────────────────────────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg-primary:#050505;
+  --bg-secondary:#0B0F12;
+  --panel:#10161B;
+  --surface:#161F26;
+  --accent-green:#7DF9AA;
+  --accent-blue:#58D5FF;
+  --warning:#FFB84D;
+  --critical:#FF5A5A;
+  --text-muted:#8B98A5;
+  --text-primary:#E8F0F5;
+  --border:#1E2D38;
+
+  /* Animation timing constants */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ─── REDUCED MOTION ────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .scan-line, .nexus-title-scan { display: none !important; }
+}
+
+/* ─── BASE ──────────────────────────────────────────────────────────────────── */
+html{scroll-behavior:smooth;scrollbar-width:thin;scrollbar-color:#1E2D38 #050505}
+body{
+  background:var(--bg-primary);
+  color:var(--text-primary);
+  font-family:'IBM Plex Mono',monospace;
+  font-size:13px;
+  line-height:1.6;
+  overflow-x:hidden;
+  /* Mobile: prevent 100vh browser chrome issue */
+  min-height: -webkit-fill-available;
+}
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-track{background:#050505}
+::-webkit-scrollbar-thumb{background:#1E2D38;border-radius:2px}
+
+/* ─── UTILS ─────────────────────────────────────────────────────────────────── */
+.mono{font-family:'IBM Plex Mono',monospace}
+.sans{font-family:'IBM Plex Sans',sans-serif}
+.label{font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--text-muted);font-weight:500}
+.accent-green{color:var(--accent-green)}
+.accent-blue{color:var(--accent-blue)}
+.warning{color:var(--warning)}
+.critical{color:var(--critical)}
+.panel{background:var(--panel);border:1px solid var(--border)}
+.surface{background:var(--surface);border:1px solid var(--border)}
+
+/* ─── NAV ───────────────────────────────────────────────────────────────────── */
+nav{
+  position:fixed;top:0;left:0;right:0;z-index:100;
+  display:flex;align-items:center;
+  padding:0 2rem;height:48px;
+  background:rgba(5,5,5,.92);
+  border-bottom:1px solid var(--border);
+  backdrop-filter:blur(8px);
+  gap:2rem;
+}
+.nav-brand{display:flex;align-items:center;gap:.75rem;flex-shrink:0}
+.nav-logo{
+  width:24px;height:24px;
+  border:1.5px solid var(--accent-green);
+  display:grid;place-items:center;
+  position:relative;
+  flex-shrink:0;
+}
+.nav-logo-dot{
+  width:8px;height:8px;
+  background:var(--accent-green);
+  animation:pulse-dot 2s infinite;
+}
+@keyframes pulse-dot{
+  0%,100%{opacity:1;transform:scale(1)}
+  50%{opacity:.4;transform:scale(.6)}
+}
+.nav-brand-text{
+  font-size:12px;font-weight:600;letter-spacing:.2em;color:var(--text-primary);
+  transition: opacity 0.5s var(--ease-in-out), transform 0.5s var(--ease-in-out);
+}
+.nav-brand-text.hidden{opacity:0;transform:translateX(-8px);pointer-events:none}
+.nav-status{display:flex;align-items:center;gap:1.5rem;margin-left:auto;flex-shrink:0}
+.status-indicator{
+  display:flex;align-items:center;gap:.4rem;
+  font-size:10px;color:var(--text-muted);letter-spacing:.1em;
+}
+/* Icon + text for accessibility — no color-only indicators */
+.status-indicator-icon{font-size:9px;flex-shrink:0}
+.status-dot{
+  width:6px;height:6px;border-radius:50%;
+  background:var(--accent-green);
+  animation:pulse-dot 1.5s infinite;
+  flex-shrink:0;
+}
+.status-dot.warn{background:var(--warning);animation-duration:1s}
+.status-dot.crit{background:var(--critical);animation-duration:.7s}
+.nav-links{display:flex;gap:2rem;flex-shrink:0;padding-right:1rem}
+.nav-links a{
+  font-size:10px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--text-muted);text-decoration:none;
+  transition:color .2s;white-space:nowrap;
+}
+.nav-links a:hover{color:var(--text-primary)}
+
+/* ─── HERO ──────────────────────────────────────────────────────────────────── */
+#hero{
+  position:relative;
+  /* Fix: use dvh for mobile browser chrome */
+  height:100vh;
+  height:100dvh;
+  min-height:580px;
+  display:flex;flex-direction:column;justify-content:flex-end;
+  padding:0 0 4rem;overflow:hidden;
+}
+#city-canvas{position:absolute;inset:0;pointer-events:none}
+.hero-overlay{
+  position:absolute;inset:0;
+  background:
+    repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(30,45,56,.04) 2px,rgba(30,45,56,.04) 4px),
+    repeating-linear-gradient(90deg,transparent,transparent 2px,rgba(30,45,56,.04) 2px,rgba(30,45,56,.04) 4px),
+    radial-gradient(circle at 20% 50%,rgba(125,249,170,.03) 0%,transparent 50%),
+    radial-gradient(circle at 80% 80%,rgba(88,213,255,.03) 0%,transparent 50%),
+    linear-gradient(to bottom,transparent 30%,rgba(5,5,5,.5) 60%,rgba(5,5,5,.8) 85%,var(--bg-primary) 100%);
+  pointer-events:none;
+}
+.scan-line{
+  position:absolute;top:0;left:0;right:0;
+  height:1px;background:linear-gradient(90deg,transparent,rgba(125,249,170,.15),transparent);
+  animation:scan 8s linear infinite;
+  pointer-events:none;
+}
+@keyframes scan{
+  0%{transform:translateY(0);opacity:0}
+  5%{opacity:1}95%{opacity:1}
+  100%{transform:translateY(100vh);opacity:0}
+}
+
+/* ─── NEXUS TITLE (scroll-driven) ──────────────────────────────────────────── */
+.nexus-title{
+  position:fixed;top:0;left:0;z-index:200;
+  pointer-events:none;text-align:center;
+  --p:0;--x:50vw;--y:28vh;--scale:1;
+  transform:translate3d(calc(var(--x) - 50%), calc(var(--y) - 50%), 0);
+  will-change:transform;
+}
+.nexus-title-inner{
+  display:inline-block;
+  transform:scale(var(--scale));
+  transform-origin:center center;
+  will-change:transform;
+}
+.nexus-title-text{
+  font-family:'IBM Plex Sans',sans-serif;
+  font-weight:900;
+  font-size:clamp(80px, 14vw, 180px);
+  line-height:0.9;
+  letter-spacing:-0.02em;
+  position:relative;
+  display:inline-block;
+  /* Opacity/shadow driven by --p without unnecessary shadow layers */
+  color:rgba(125,249,170, calc(0.14 + var(--p) * 0.71));
+  text-shadow:
+    calc(-2px + var(--p)*1px) 0 rgba(255,90,90, calc(0.08 + var(--p)*0.22)),
+    calc(2px - var(--p)*1px) 0 rgba(88,213,255, calc(0.1 + var(--p)*0.2)),
+    0 0 calc(var(--p)*14px) rgba(125,249,170, calc(var(--p)*0.5));
+  will-change:color,text-shadow;
+  /* Breathing animation — suppressed once scrolled */
+  animation:titleBreath 5s ease-in-out infinite;
+}
+@keyframes titleBreath{
+  0%,100%{filter:drop-shadow(0 0 8px rgba(125,249,170,calc(0.04*(1 - var(--p)))))}
+  50%{filter:drop-shadow(0 0 20px rgba(125,249,170,calc(0.10*(1 - var(--p)))))}
+}
+
+/* Glitch layers */
+.nexus-title-text::before,
+.nexus-title-text::after{
+  content:attr(data-text);
+  position:absolute;top:0;left:0;
+  width:100%;height:100%;
+  pointer-events:none;
+  opacity:calc(1 - var(--p)*3);
+}
+.nexus-title-text::before{
+  color:rgba(255,90,90,.5);
+  animation:glitchRed 4.5s infinite steps(1);
+  mix-blend-mode:screen;
+}
+.nexus-title-text::after{
+  color:rgba(88,213,255,.5);
+  animation:glitchBlue 4.5s infinite steps(1);
+  mix-blend-mode:screen;
+}
+@keyframes glitchRed{
+  0%,92%,100%{transform:translate(0);clip-path:inset(0 0 0 0)}
+  93%{transform:translate(-3px,1px);clip-path:inset(20% 0 60% 0)}
+  94%{transform:translate(2px,-2px);clip-path:inset(60% 0 10% 0)}
+  95%{transform:translate(-4px,0);clip-path:inset(40% 0 40% 0)}
+  96%{transform:translate(0);clip-path:inset(0 0 0 0)}
+  47%{transform:translate(0);clip-path:inset(0 0 0 0)}
+  48%{transform:translate(-2px,0);clip-path:inset(70% 0 15% 0)}
+  49%{transform:translate(0);clip-path:inset(0 0 0 0)}
+}
+@keyframes glitchBlue{
+  0%,92%,100%{transform:translate(0);clip-path:inset(0 0 0 0)}
+  93%{transform:translate(3px,-1px);clip-path:inset(20% 0 60% 0)}
+  94%{transform:translate(-2px,2px);clip-path:inset(60% 0 10% 0)}
+  95%{transform:translate(4px,0);clip-path:inset(40% 0 40% 0)}
+  96%{transform:translate(0);clip-path:inset(0 0 0 0)}
+  47%{transform:translate(0);clip-path:inset(0 0 0 0)}
+  48%{transform:translate(2px,0);clip-path:inset(70% 0 15% 0)}
+  49%{transform:translate(0);clip-path:inset(0 0 0 0)}
+}
+.nexus-title-scan{
+  position:absolute;top:0;left:0;right:0;height:100%;
+  pointer-events:none;overflow:hidden;
+  opacity:calc(1 - var(--p)*3);
+}
+.nexus-title-scan::before{
+  content:'';position:absolute;top:-10%;left:0;right:0;
+  height:6px;
+  background:linear-gradient(to bottom,transparent,rgba(125,249,170,.45),transparent);
+  animation:scanSweep 3.5s linear infinite;filter:blur(1px);
+}
+@keyframes scanSweep{
+  0%{transform:translateY(0);opacity:0}
+  10%{opacity:1}90%{opacity:1}
+  100%{transform:translateY(120%);opacity:0}
+}
+.nexus-title.pinned .nexus-title-text::before,
+.nexus-title.pinned .nexus-title-text::after,
+.nexus-title.pinned .nexus-title-scan{display:none}
+.nexus-title.pinned .nexus-title-text{animation:none}
+.nexus-title.pinned .nexus-title-inner{animation:logoFloat 4.5s ease-in-out infinite}
+@keyframes logoFloat{
+  0%,100%{transform:scale(var(--scale)) translateY(0)}
+  50%{transform:scale(var(--scale)) translateY(-4px)}
+}
+.nexus-title-tagline{
+  font-family:'IBM Plex Mono',monospace;
+  font-size:12px;letter-spacing:0.22em;
+  color:rgba(232,240,245,.55);
+  margin-top:1rem;text-transform:uppercase;
+  opacity:calc(1 - var(--p)*2.5);
+  transform:translateY(calc(var(--p)*-10px));
+  will-change:opacity,transform;font-weight:500;
+}
+.nexus-title-tagline .acr{
+  color:rgba(125,249,170,.95);font-weight:700;
+  text-shadow:0 0 8px rgba(125,249,170,.5),0 0 16px rgba(125,249,170,.25);
+  display:inline-block;
+}
+.nexus-title-underline{
+  width:60%;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(125,249,170,.3),transparent);
+  margin:.75rem auto 0;
+  opacity:calc(1 - var(--p)*2.5);
+  transform:scaleX(calc(1 - var(--p)*1.5));
+  will-change:opacity,transform;
+}
+
+/* ─── HERO CONTENT ──────────────────────────────────────────────────────────── */
+.hero-content{position:relative;z-index:2;max-width:900px;padding:0 3rem}
+.hero-eyebrow{display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem}
+.hero-eyebrow-line{width:32px;height:1px;background:var(--accent-green)}
+.hero-eyebrow-text{font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--accent-green)}
+.hero-headline{
+  font-family:'IBM Plex Sans',sans-serif;
+  font-size:clamp(2rem,5vw,4rem);
+  font-weight:300;line-height:1.1;letter-spacing:-.02em;
+  color:var(--text-primary);margin-bottom:1rem;
+}
+.hero-headline strong{font-weight:600}
+.hero-sub{
+  font-size:13px;color:var(--text-muted);
+  max-width:520px;margin-bottom:2.5rem;
+  line-height:1.8;font-family:'IBM Plex Sans',sans-serif;
+}
+.hero-actions{display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap}
+.btn-primary{
+  display:inline-flex;align-items:center;gap:.5rem;
+  padding:.6rem 1.25rem;
+  border:1px solid var(--accent-green);
+  background:rgba(125,249,170,.08);
+  color:var(--accent-green);
+  font-family:'IBM Plex Mono',monospace;
+  font-size:11px;letter-spacing:.15em;text-transform:uppercase;
+  text-decoration:none;cursor:pointer;
+  transition:background .2s;
+}
+.btn-primary:hover,.btn-primary:focus{background:rgba(125,249,170,.15);outline:1px solid var(--accent-green)}
+.btn-secondary{
+  display:inline-flex;align-items:center;gap:.5rem;
+  font-size:11px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--text-muted);text-decoration:none;cursor:pointer;
+  transition:color .2s;
+}
+.btn-secondary:hover,.btn-secondary:focus{color:var(--text-primary)}
+.hero-bottom-bar{
+  position:absolute;bottom:0;left:0;right:0;
+  display:flex;justify-content:space-between;align-items:flex-end;
+  padding:1rem 3rem;
+  font-size:10px;color:var(--text-muted);letter-spacing:.1em;
+  border-top:1px solid rgba(30,45,56,.5);z-index:2;
+}
+.transmission-ticker{display:flex;gap:2rem;overflow:hidden;max-width:60vw}
+.tick-item{white-space:nowrap;transition:opacity .3s}
+
+/* ─── SECTIONS ──────────────────────────────────────────────────────────────── */
+section{position:relative;padding:6rem 0}
+.section-inner{max-width:1200px;margin:0 auto;padding:0 3rem}
+.section-header{margin-bottom:4rem}
+.section-tag{
+  display:inline-flex;align-items:center;gap:.5rem;
+  font-size:10px;letter-spacing:.2em;text-transform:uppercase;
+  color:var(--accent-green);margin-bottom:1rem;
+}
+.section-tag::before{content:'';width:16px;height:1px;background:var(--accent-green)}
+.section-title{
+  font-family:'IBM Plex Sans',sans-serif;
+  font-size:clamp(1.5rem,3vw,2.5rem);
+  font-weight:300;letter-spacing:-.01em;
+  color:var(--text-primary);margin-bottom:.75rem;
+}
+.section-title strong{font-weight:600}
+.section-desc{
+  font-size:13px;color:var(--text-muted);
+  max-width:540px;line-height:1.8;
+  font-family:'IBM Plex Sans',sans-serif;
+}
+.divider{height:1px;background:linear-gradient(90deg,var(--border),transparent)}
+
+/* ─── CRISIS GRID ───────────────────────────────────────────────────────────── */
+#crisis{background:var(--bg-secondary)}
+.crisis-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--border)}
+.crisis-cell{background:var(--panel);padding:2rem}
+.crisis-cell-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:1.5rem}
+.crisis-icon{width:32px;height:32px;border:1px solid;display:grid;place-items:center;font-size:14px;flex-shrink:0}
+.crisis-icon.fail{border-color:var(--critical);color:var(--critical)}
+.crisis-icon.warn{border-color:var(--warning);color:var(--warning)}
+.crisis-value{font-size:2rem;font-weight:600;letter-spacing:-.02em;line-height:1}
+.crisis-value.crit{color:var(--critical)}
+.crisis-value.warn{color:var(--warning)}
+.crisis-label{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-muted);margin-top:.25rem}
+.crisis-body{font-size:12px;color:var(--text-muted);line-height:1.7;font-family:'IBM Plex Sans',sans-serif}
+.crisis-bar-wrap{margin-top:1.5rem}
+.crisis-bar-label{display:flex;justify-content:space-between;font-size:10px;color:var(--text-muted);letter-spacing:.1em;margin-bottom:.4rem}
+.crisis-bar{height:2px;background:var(--surface);position:relative;overflow:hidden}
+.crisis-bar-fill{position:absolute;top:0;left:0;height:100%;transition:width 1.5s ease}
+
+/* ─── MESH NETWORK ──────────────────────────────────────────────────────────── */
+#mesh{background:var(--bg-primary)}
+.mesh-layout{display:grid;grid-template-columns:1.6fr 1fr;gap:2rem;align-items:start}
+#mesh-canvas{width:100%;aspect-ratio:1.4/1;background:var(--panel);border:1px solid var(--border);position:relative;overflow:hidden}
+.mesh-stats{display:flex;flex-direction:column;gap:1rem}
+.stat-card{background:var(--panel);border:1px solid var(--border);padding:1.25rem}
+.stat-card-label{font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--text-muted);margin-bottom:.5rem}
+.stat-card-value{font-size:1.5rem;font-weight:600;letter-spacing:-.02em}
+.stat-card-sub{font-size:11px;color:var(--text-muted);margin-top:.25rem;font-family:'IBM Plex Sans',sans-serif}
+.relay-log{background:var(--panel);border:1px solid var(--border);padding:1.25rem;margin-top:1rem;max-height:200px;overflow:hidden}
+.relay-log-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;padding-bottom:.75rem;border-bottom:1px solid var(--border)}
+.relay-entry{font-size:10px;color:var(--text-muted);padding:.25rem 0;border-bottom:1px solid rgba(30,45,56,.5);display:flex;gap:1rem;animation:fade-in .3s ease}
+@keyframes fade-in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+.relay-time{color:var(--accent-green);flex-shrink:0}
+.relay-msg{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ─── VERIFICATION ──────────────────────────────────────────────────────────── */
+#verification{background:var(--bg-secondary)}
+.verify-layout{display:grid;grid-template-columns:1fr 1fr;gap:2rem}
+.verify-pipeline{background:var(--panel);border:1px solid var(--border);padding:1.5rem}
+.pipeline-step{display:flex;gap:1rem;align-items:flex-start;padding:.75rem 0;border-bottom:1px solid var(--border)}
+.pipeline-step:last-child{border-bottom:none}
+.step-num{width:24px;height:24px;border:1px solid var(--border);display:grid;place-items:center;font-size:10px;color:var(--text-muted);flex-shrink:0}
+.step-num.active{border-color:var(--accent-green);color:var(--accent-green)}
+.step-content{flex:1}
+.step-label{font-size:11px;color:var(--text-primary);margin-bottom:.25rem;font-weight:500}
+.step-desc{font-size:10px;color:var(--text-muted);line-height:1.6;font-family:'IBM Plex Sans',sans-serif}
+.step-status{font-size:9px;letter-spacing:.12em;text-transform:uppercase;padding:.15rem .4rem;border:1px solid}
+.step-status.pass{border-color:var(--accent-green);color:var(--accent-green)}
+.step-status.pend{border-color:var(--warning);color:var(--warning)}
+.step-status.fail{border-color:var(--critical);color:var(--critical)}
+.trust-panel{background:var(--panel);border:1px solid var(--border);padding:1.5rem;display:flex;flex-direction:column;gap:1rem}
+.trust-score-display{text-align:center;padding:2rem;background:var(--surface);border:1px solid var(--border)}
+.trust-score-num{font-size:4rem;font-weight:600;letter-spacing:-.04em;color:var(--accent-green)}
+.trust-score-label{font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--text-muted)}
+.trust-bars{display:flex;flex-direction:column;gap:.75rem}
+.trust-bar-row{display:flex;align-items:center;gap:1rem}
+.trust-bar-name{font-size:10px;color:var(--text-muted);width:120px;flex-shrink:0;letter-spacing:.08em}
+.trust-bar-track{flex:1;height:3px;background:var(--surface);position:relative;overflow:hidden}
+.trust-bar-fill{position:absolute;top:0;left:0;height:100%;background:var(--accent-green);transition:width 1.5s ease}
+.trust-bar-fill.med{background:var(--warning)}
+.trust-bar-fill.low{background:var(--critical)}
+.trust-bar-val{font-size:10px;color:var(--text-muted);width:30px;text-align:right}
+
+/* ─── DASHBOARD ─────────────────────────────────────────────────────────────── */
+#dashboard{background:var(--bg-primary)}
+.dash-layout{display:grid;grid-template-columns:2fr 1fr 1fr;grid-template-rows:auto auto;gap:1px;background:var(--border)}
+.dash-cell{background:var(--panel);padding:1.5rem}
+.dash-cell.span2{grid-column:span 2}
+.dash-cell-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;padding-bottom:.75rem;border-bottom:1px solid var(--border)}
+.dash-title{font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--text-muted)}
+.dash-live{font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent-green);display:flex;align-items:center;gap:.3rem}
+.dash-live::before{content:'';width:5px;height:5px;border-radius:50%;background:var(--accent-green);animation:pulse-dot 1s infinite}
+.distress-feed{display:flex;flex-direction:column;gap:.5rem}
+.distress-item{display:flex;gap:.75rem;align-items:flex-start;padding:.5rem;background:var(--surface);font-size:11px}
+.distress-item.med{border-left:2px solid var(--critical)}
+.distress-item.sup{border-left:2px solid var(--warning)}
+.distress-item.inf{border-left:2px solid var(--accent-blue)}
+.distress-type{font-size:9px;letter-spacing:.1em;text-transform:uppercase;padding:.1rem .3rem;border:1px solid;flex-shrink:0;margin-top:.1rem}
+.distress-type.med{border-color:var(--critical);color:var(--critical)}
+.distress-type.sup{border-color:var(--warning);color:var(--warning)}
+.distress-type.inf{border-color:var(--accent-blue);color:var(--accent-blue)}
+.distress-text{color:var(--text-muted);line-height:1.5;font-family:'IBM Plex Sans',sans-serif}
+.distress-meta{font-size:9px;color:#4a5a68;margin-top:.2rem}
+.relay-uptime{display:flex;flex-direction:column;gap:.6rem}
+.relay-row{display:flex;align-items:center;gap:.75rem;font-size:10px}
+.relay-name{color:var(--text-muted);flex:1;letter-spacing:.06em}
+.relay-pct{color:var(--text-primary);font-weight:500;width:36px;text-align:right}
+.relay-track{width:60px;height:2px;background:var(--surface)}
+.relay-fill{height:100%;background:var(--accent-green)}
+.relay-fill.warn{background:var(--warning)}
+.relay-fill.crit{background:var(--critical)}
+.infra-grid{display:flex;flex-direction:column;gap:.75rem}
+.infra-row{display:flex;justify-content:space-between;align-items:center;padding:.5rem 0;border-bottom:1px solid var(--border);font-size:11px}
+.infra-row:last-child{border-bottom:none}
+.infra-key{color:var(--text-muted);letter-spacing:.06em}
+.infra-val{font-weight:500}
+
+/* ─── TIMELINE ──────────────────────────────────────────────────────────────── */
+#timeline{background:var(--bg-secondary)}
+.timeline-track{position:relative;padding-left:2rem}
+.timeline-track::before{content:'';position:absolute;left:0;top:0;bottom:0;width:1px;background:var(--border)}
+.timeline-item{position:relative;padding:0 0 3rem 2.5rem}
+.timeline-item::before{content:'';position:absolute;left:-5px;top:6px;width:10px;height:10px;border:1px solid var(--border);background:var(--bg-primary);transform:rotate(45deg)}
+.timeline-item.active::before{border-color:var(--accent-green);background:rgba(125,249,170,.15)}
+.timeline-item.warn::before{border-color:var(--warning);background:rgba(255,184,77,.1)}
+.timeline-item.crit::before{border-color:var(--critical);background:rgba(255,90,90,.1)}
+.t-hour{font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--text-muted);margin-bottom:.4rem}
+.t-title{font-family:'IBM Plex Sans',sans-serif;font-size:1.1rem;font-weight:500;color:var(--text-primary);margin-bottom:.5rem}
+.t-desc{font-size:12px;color:var(--text-muted);line-height:1.7;max-width:480px;font-family:'IBM Plex Sans',sans-serif}
+.t-metrics{display:flex;gap:2rem;margin-top:1rem}
+.t-metric{font-size:11px}
+.t-metric-val{font-weight:600}
+.t-metric-label{color:var(--text-muted);font-size:10px;letter-spacing:.08em}
+
+/* ─── ARCHITECTURE ──────────────────────────────────────────────────────────── */
+#architecture{background:var(--bg-primary)}
+.arch-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border)}
+.arch-cell{background:var(--panel);padding:1.75rem;position:relative;overflow:hidden}
+.arch-cell::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--border)}
+.arch-cell.primary::before{background:var(--accent-green)}
+.arch-cell.secondary::before{background:var(--accent-blue)}
+.arch-cell.warn::before{background:var(--warning)}
+.arch-num{font-size:2rem;font-weight:600;color:var(--border);letter-spacing:-.04em;margin-bottom:1rem;line-height:1}
+.arch-name{font-size:12px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--text-primary);margin-bottom:.5rem}
+.arch-desc{font-size:11px;color:var(--text-muted);line-height:1.7;font-family:'IBM Plex Sans',sans-serif}
+.arch-specs{margin-top:1.25rem;display:flex;flex-direction:column;gap:.4rem}
+.arch-spec{display:flex;gap:.5rem;font-size:10px;color:var(--text-muted)}
+.arch-spec::before{content:'→';color:var(--accent-green)}
+
+/* ─── PROTOCOL SIMULATION ───────────────────────────────────────────────────── */
+#protocol{background:var(--bg-secondary)}
+.protocol-layout{display:grid;grid-template-columns:1fr 1.5fr;gap:2rem}
+.proto-controls{background:var(--panel);border:1px solid var(--border);padding:1.5rem}
+.proto-btn{
+  width:100%;padding:.75rem 1rem;
+  border:1px solid var(--accent-green);
+  background:rgba(125,249,170,.06);
+  color:var(--accent-green);
+  font-family:'IBM Plex Mono',monospace;
+  font-size:11px;letter-spacing:.15em;text-transform:uppercase;
+  cursor:pointer;margin-bottom:.75rem;
+  transition:background .2s, opacity .2s;
+  text-align:left;display:flex;align-items:center;justify-content:space-between;
+}
+.proto-btn:hover:not(:disabled){background:rgba(125,249,170,.12)}
+.proto-btn:focus{outline:1px solid var(--accent-green)}
+.proto-btn:disabled{opacity:.35;cursor:not-allowed;pointer-events:none}
+.proto-btn.active{background:rgba(125,249,170,.15);border-color:var(--accent-green)}
+.proto-btn-arrow{opacity:.5}
+.proto-params{display:flex;flex-direction:column;gap:.5rem;margin-top:1.25rem}
+.proto-param{display:flex;justify-content:space-between;align-items:center;padding:.5rem 0;border-bottom:1px solid var(--border);font-size:11px}
+.proto-param:last-child{border-bottom:none}
+.proto-param-key{color:var(--text-muted);letter-spacing:.06em}
+.proto-param-val{font-weight:500}
+.proto-terminal{background:#080D10;border:1px solid var(--border);padding:1.5rem;font-size:11px;max-height:480px;overflow-y:auto}
+.proto-terminal-header{display:flex;justify-content:space-between;margin-bottom:1rem;padding-bottom:.75rem;border-bottom:1px solid var(--border)}
+.proto-line{padding:.2rem 0;border-bottom:1px solid rgba(30,45,56,.3);display:flex;gap:1rem;animation:fade-in .4s ease}
+.proto-ts{color:#3a4a58;flex-shrink:0;font-size:10px}
+.proto-node{color:var(--accent-blue);flex-shrink:0;width:100px}
+.proto-content{flex:1;color:var(--text-muted)}
+.proto-content.ok{color:var(--accent-green)}
+.proto-content.warn{color:var(--warning)}
+.proto-content.err{color:var(--critical)}
+
+/* ─── CTA ───────────────────────────────────────────────────────────────────── */
+#cta{background:var(--bg-primary);padding:8rem 0}
+.cta-inner{max-width:800px;margin:0 auto;text-align:center;padding:0 3rem}
+.cta-status-row{display:flex;justify-content:center;gap:3rem;margin-bottom:3rem;flex-wrap:wrap}
+.cta-status-item{display:flex;flex-direction:column;align-items:center;gap:.4rem}
+.cta-status-val{font-size:1.4rem;font-weight:600;letter-spacing:-.02em}
+.cta-headline{font-family:'IBM Plex Sans',sans-serif;font-size:clamp(1.5rem,4vw,3rem);font-weight:300;letter-spacing:-.02em;margin-bottom:1rem;line-height:1.1}
+.cta-sub{font-size:13px;color:var(--text-muted);line-height:1.8;font-family:'IBM Plex Sans',sans-serif;max-width:480px;margin:0 auto 2.5rem}
+.cta-actions{display:flex;justify-content:center;gap:1.5rem;flex-wrap:wrap}
+.cta-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border);margin-top:4rem}
+.cta-grid-cell{background:var(--panel);padding:1.5rem;text-align:left}
+.cta-grid-label{font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--text-muted);margin-bottom:.5rem}
+.cta-grid-val{font-size:1.2rem;font-weight:600;color:var(--text-primary)}
+
+/* ─── FOOTER ─────────────────────────────────────────────────────────────────── */
+footer{border-top:1px solid var(--border);padding:2rem 3rem;display:flex;justify-content:space-between;align-items:center;font-size:10px;color:var(--text-muted);letter-spacing:.08em;flex-wrap:wrap;gap:.75rem}
+
+/* ─── ANIMATIONS ─────────────────────────────────────────────────────────────── */
+@keyframes float-in{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+.animate-in{animation:float-in .6s ease forwards;opacity:0}
+.delay-1{animation-delay:.1s}.delay-2{animation-delay:.2s}.delay-3{animation-delay:.3s}.delay-4{animation-delay:.4s}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
+@keyframes glow-pulse{
+  0%,100%{box-shadow:0 0 0 0 rgba(125,249,170,0)}
+  50%{box-shadow:0 0 12px 2px rgba(125,249,170,.18)}
+}
+.proto-btn.glow-pulse{animation:glow-pulse 1.5s ease-in-out infinite}
+
+/* ─── INFRA MAP ──────────────────────────────────────────────────────────────── */
+#infrastructure{background:var(--bg-secondary)}
+.infra-map-wrap{position:relative;background:var(--panel);border:1px solid var(--border);aspect-ratio:2/1;overflow:hidden}
+#infra-canvas{width:100%;height:100%}
+
+/* ─── DEVICE GRID ────────────────────────────────────────────────────────────── */
+#devices{background:var(--bg-primary)}
+.device-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border)}
+.device-card{background:var(--panel);padding:1.75rem}
+.device-icon-wrap{width:48px;height:48px;border:1px solid var(--border);display:grid;place-items:center;margin-bottom:1.25rem;font-size:20px}
+.device-name{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:.5rem}
+.device-spec{font-size:10px;color:var(--text-muted);line-height:1.6;font-family:'IBM Plex Sans',sans-serif}
+.device-tags{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:1rem}
+.device-tag{font-size:9px;letter-spacing:.1em;text-transform:uppercase;border:1px solid var(--border);padding:.1rem .4rem;color:var(--text-muted)}
+.device-tag.active{border-color:var(--accent-green);color:var(--accent-green)}
+
+/* ─── RESPONSIVE ─────────────────────────────────────────────────────────────── */
+@media(max-width:1024px){
+  .dash-layout{grid-template-columns:1fr 1fr}
+  .dash-cell.span2{grid-column:span 2}
+}
+@media(max-width:900px){
+  .mesh-layout,.verify-layout,.protocol-layout{grid-template-columns:1fr}
+  .dash-layout{grid-template-columns:1fr 1fr}
+  .crisis-grid,.arch-grid,.device-grid{grid-template-columns:1fr 1fr}
+  .cta-grid{grid-template-columns:1fr 1fr}
+  .nav-links{display:none}
+  .hero-bottom-bar{flex-direction:column;gap:.5rem;align-items:flex-start}
+}
+@media(max-width:600px){
+  .section-inner{padding:0 1.25rem}
+  .hero-content{padding:0 1.25rem}
+  .crisis-grid,.arch-grid,.device-grid,.cta-grid{grid-template-columns:1fr}
+  .dash-layout{grid-template-columns:1fr}
+  .dash-cell.span2{grid-column:span 1}
+  .nav-status .status-indicator:not(:first-child){display:none}
+  footer{flex-direction:column;gap:.5rem}
+}
+@media(max-width:480px){
+  .hero-headline{font-size:1.75rem}
+  .hero-actions{flex-direction:column;align-items:flex-start}
+}
+
+/* ─── PRINT STYLES ───────────────────────────────────────────────────────────── */
+@media print{
+  nav,.scan-line,.nexus-title,#city-canvas,.hero-overlay,canvas{display:none!important}
+  body{background:#fff;color:#000;font-size:11pt}
+  section{padding:1cm 0}
+  .panel,.surface{background:#f5f5f5;border-color:#ccc}
+  .accent-green,.accent-blue{color:#000}
+  footer{border-top:1px solid #ccc;color:#444}
+}
+
+/* ─── V4: METRIC BUMP ───────────────────────────────────────────────────────── */
+@keyframes metric-bump{0%{transform:scale(1)}40%{transform:scale(1.1)}100%{transform:scale(1)}}
+.metric-bump{animation:metric-bump .35s cubic-bezier(0.16,1,0.3,1)}
+
+/* ─── V4: TUTORIAL OVERLAY ──────────────────────────────────────────────────── */
+#tutorial-overlay{position:fixed;inset:0;z-index:500;background:rgba(5,5,5,.93);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px)}
+.tutorial-box{max-width:560px;width:90%;background:var(--panel);border:1px solid var(--accent-green);padding:2.5rem;position:relative}
+.tutorial-step{display:none}.tutorial-step.active{display:block}
+.tutorial-progress{display:flex;gap:.5rem;margin-bottom:2rem}
+.tutorial-pip{width:28px;height:2px;background:var(--border);transition:background .3s}
+.tutorial-pip.done{background:var(--accent-green)}
+.tutorial-step-tag{font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--accent-green);margin-bottom:.75rem}
+.tutorial-step-title{font-family:'IBM Plex Sans',sans-serif;font-size:1.4rem;font-weight:300;color:var(--text-primary);margin-bottom:1rem;line-height:1.2}
+.tutorial-step-title strong{font-weight:600}
+.tutorial-step-body{font-size:12px;color:var(--text-muted);line-height:1.8;font-family:'IBM Plex Sans',sans-serif;margin-bottom:1.5rem}
+.tutorial-demo{margin:1rem 0;padding:1rem;background:var(--surface);border:1px solid var(--border);font-size:11px;color:var(--text-muted);font-family:'IBM Plex Sans',sans-serif;line-height:1.8}
+.tutorial-demo strong{color:var(--text-primary)}
+.tutorial-highlight{display:inline-block;padding:.1rem .4rem;background:rgba(125,249,170,.1);border:1px solid rgba(125,249,170,.3);color:var(--accent-green);font-family:'IBM Plex Mono',monospace;font-size:11px}
+.tutorial-nav{display:flex;justify-content:space-between;align-items:center;gap:1rem}
+.tutorial-skip{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-muted);cursor:pointer;background:none;border:none;font-family:'IBM Plex Mono',monospace;padding:0;transition:color .2s}
+.tutorial-skip:hover{color:var(--text-primary)}
+
+/* ─── V4: DIFFICULTY MODAL ──────────────────────────────────────────────────── */
+#difficulty-modal{position:fixed;inset:0;z-index:500;background:rgba(5,5,5,.88);display:none;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+#difficulty-modal.open{display:flex}
+.diff-box{max-width:640px;width:90%;background:var(--panel);border:1px solid var(--border)}
+.diff-header{padding:1.5rem;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+.diff-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border)}
+.diff-card{background:var(--panel);padding:1.5rem;cursor:pointer;transition:background .2s;border:2px solid transparent}
+.diff-card:hover{background:var(--surface)}.diff-card.selected{border-color:var(--accent-green);background:rgba(125,249,170,.06)}
+.diff-card-label{font-size:10px;letter-spacing:.15em;text-transform:uppercase;margin-bottom:.5rem}
+.diff-card-name{font-size:14px;font-weight:600;letter-spacing:.05em;margin-bottom:.75rem}
+.diff-card-desc{font-size:10px;color:var(--text-muted);line-height:1.6;font-family:'IBM Plex Sans',sans-serif}
+.diff-footer{padding:1.25rem 1.5rem;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:1rem}
+@media(max-width:600px){.diff-grid{grid-template-columns:1fr}}
+
+/* ─── V4: COMPARISON ────────────────────────────────────────────────────────── */
+#compare-section{background:var(--bg-secondary);padding:5rem 0;display:none}
+.compare-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--border)}
+.compare-cell{background:var(--panel);padding:1.5rem}
+.compare-cell-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;padding-bottom:.75rem;border-bottom:1px solid var(--border)}
+.compare-badge{font-size:9px;letter-spacing:.12em;text-transform:uppercase;padding:.2rem .5rem;border:1px solid}
+.compare-badge.a{border-color:var(--accent-green);color:var(--accent-green)}.compare-badge.b{border-color:var(--accent-blue);color:var(--accent-blue)}
+.compare-metric{display:flex;justify-content:space-between;align-items:center;padding:.4rem 0;border-bottom:1px solid var(--border);font-size:11px}
+.compare-metric:last-child{border-bottom:none}
+.compare-metric-key{color:var(--text-muted);letter-spacing:.06em}
+.compare-winner{color:var(--accent-green);font-weight:600}.compare-loser{color:var(--text-muted)}
+@media(max-width:700px){.compare-grid{grid-template-columns:1fr}}
+
+/* ─── V4: PREDICTION ────────────────────────────────────────────────────────── */
+#predict-panel{background:var(--panel);border:1px solid var(--warning);padding:1rem;margin-bottom:1.5rem;display:none}
+.predict-options{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.75rem}
+.predict-option{padding:.35rem .75rem;border:1px solid var(--border);background:transparent;color:var(--text-muted);font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;transition:all .2s}
+.predict-option:hover{border-color:var(--warning);color:var(--warning)}
+.predict-option.selected{border-color:var(--warning);color:var(--warning);background:rgba(255,184,77,.08)}
+.predict-result{margin-top:.75rem;padding:.5rem;font-size:10px;line-height:1.6;background:var(--surface);color:var(--text-muted)}
+
+/* ─── V4: IMPACT CHART ──────────────────────────────────────────────────────── */
+.impact-chart-wrap{position:relative;height:80px;background:#080D10;border:1px solid var(--border);margin-top:.75rem}
+#impact-chart{width:100%;height:100%}
+
+/* ─── V4: COUNTERFACTUAL INTERACTIVE ────────────────────────────────────────── */
+.cf-option{padding:.35rem .75rem;border:1px solid var(--border);background:transparent;color:var(--text-muted);font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;transition:all .2s;margin-bottom:.35rem;width:100%;text-align:left}
+.cf-option:hover{border-color:var(--accent-green);color:var(--accent-green)}
+
+/* ─── V4: TOPOLOGY INSIGHT ──────────────────────────────────────────────────── */
+#topology-insight{font-size:12px;color:var(--text-primary);line-height:1.8;font-family:'IBM Plex Sans',sans-serif}
+
+</style>
+</head>
+<body>
+
+<!-- ARIA: skip to main content -->
+<a href="#act1" style="position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden;z-index:9999;background:var(--bg-primary);color:var(--accent-green);padding:.5rem 1rem;font-size:12px" onfocus="this.style.left='0';this.style.width='auto';this.style.height='auto'" onblur="this.style.left='-9999px'">Skip to main content</a>
+
+<!-- ─── V4: TUTORIAL OVERLAY ────────────────────────────────────────────────── -->
+<div id="tutorial-overlay" role="dialog" aria-modal="true" aria-label="Getting started">
+  <div class="tutorial-box">
+    <div class="tutorial-progress" id="tut-progress"></div>
+    <div class="tutorial-step active" id="tut-0">
+      <div class="tutorial-step-tag">WELCOME // NEXUS</div>
+      <div class="tutorial-step-title">A city loses its internet.<br><strong>What happens next?</strong></div>
+      <div class="tutorial-step-body">NEXUS is an interactive systems study. You'll design a mesh communication network, then watch it face a real crisis. No prior knowledge needed — the simulation teaches you as you go.<br><br>This takes about <strong>10 minutes</strong>. Every decision you make has measurable consequences.</div>
+      <div class="tutorial-demo"><strong>What you'll learn:</strong> Why decentralized networks are resilient. Why every design decision creates tradeoffs. Why constraint is a feature, not a limitation.</div>
+      <div class="tutorial-nav"><button class="tutorial-skip" onclick="closeTutorial()">SKIP TUTORIAL</button><button class="btn-primary" onclick="tutNext()">START →</button></div>
+    </div>
+    <div class="tutorial-step" id="tut-1">
+      <div class="tutorial-step-tag">STEP 1 // THE GRID</div>
+      <div class="tutorial-step-title">The grid is your <strong>city.</strong></div>
+      <div class="tutorial-step-body">Each cell represents a real area. People live there. They need to communicate during an emergency. You place nodes to build coverage.</div>
+      <div class="tutorial-demo">Coverage zones light up <strong style="color:var(--accent-green)">green</strong> when you place a node. Dead zones stay <strong style="color:var(--critical)">dark red</strong> — those areas go silent during blackout.<br><br>Goal: reach <span class="tutorial-highlight">40%+ coverage</span> before the crisis starts. You can't cover everything — that's the point.</div>
+      <div class="tutorial-nav"><button class="tutorial-skip" onclick="tutPrev()">← BACK</button><button class="btn-primary" onclick="tutNext()">NEXT →</button></div>
+    </div>
+    <div class="tutorial-step" id="tut-2">
+      <div class="tutorial-step-tag">STEP 2 // YOUR BUDGET</div>
+      <div class="tutorial-step-title">You have <strong>12 budget units.</strong> Spend wisely.</div>
+      <div class="tutorial-step-body">Four node types. Each costs differently. Each covers differently. Each fails differently under stress.</div>
+      <div class="tutorial-demo">
+        <strong style="color:#8B98A5">📱 CIVILIAN DEVICE</strong> — Free. Short range. First to fail during blackout.<br>
+        <strong style="color:#58D5FF">📡 MESH NODE</strong> — 1 unit. Medium range. Good bridge between relays.<br>
+        <strong style="color:#7DF9AA">🔋 RELAY HUB</strong> — 3 units. Long range. Backbone of the network.<br>
+        <strong style="color:#FFB84D">🏢 SHELTER HUB</strong> — 2 units. Reliable anchor. Lasts longest.<br><br>
+        There is no correct combination. Every topology creates different tradeoffs.
+      </div>
+      <div class="tutorial-nav"><button class="tutorial-skip" onclick="tutPrev()">← BACK</button><button class="btn-primary" onclick="tutNext()">NEXT →</button></div>
+    </div>
+    <div class="tutorial-step" id="tut-3">
+      <div class="tutorial-step-tag">STEP 3 // THE CRISIS</div>
+      <div class="tutorial-step-title">Then the blackout <strong>hits.</strong></div>
+      <div class="tutorial-step-body">Three phases. 24 simulated hours. Your topology faces everything: node failures, message floods, misinformation attacks, battery depletion.</div>
+      <div class="tutorial-demo">
+        <strong>Hour 0–3:</strong> Random failures. Coverage shrinks.<br>
+        <strong>Hour 3–12:</strong> Medical, supply and misinfo messages flood in. You'll be asked to predict what happens next.<br>
+        <strong>Hour 12+:</strong> Batteries drain. Will your relays survive day 2?<br><br>
+        You control routing priority, verification strictness, and battery allocation in real time.
+      </div>
+      <div class="tutorial-nav"><button class="tutorial-skip" onclick="tutPrev()">← BACK</button><button class="btn-primary" onclick="tutNext()">NEXT →</button></div>
+    </div>
+    <div class="tutorial-step" id="tut-4">
+      <div class="tutorial-step-tag">STEP 4 // READY</div>
+      <div class="tutorial-step-title">Choose your <strong>difficulty</strong> when you run the crisis.</div>
+      <div class="tutorial-step-body">Mild, Moderate, or Severe. This controls how fast nodes fail, message volume, and battery drain rate. Start mild if you want to learn. Go severe if you're ready to be stress-tested.</div>
+      <div class="tutorial-demo">New in V4: <strong>Design Comparison</strong> — save two topologies and run both through the same crisis to see which held up better. <strong>Undo</strong> (Ctrl+Z) is available during design. <strong>Predict</strong> what happens before advancing each phase.</div>
+      <div class="tutorial-nav"><button class="tutorial-skip" onclick="tutPrev()">← BACK</button><button class="btn-primary" onclick="closeTutorialAndStart()">BEGIN SIMULATION →</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── V4: DIFFICULTY MODAL ─────────────────────────────────────────────────── -->
+<div id="difficulty-modal" role="dialog" aria-modal="true" aria-label="Select difficulty">
+  <div class="diff-box">
+    <div class="diff-header"><span class="label">SELECT CRISIS DIFFICULTY</span><button class="tutorial-skip" onclick="closeDiffModal()" aria-label="Close">✕</button></div>
+    <div class="diff-grid">
+      <div class="diff-card selected" id="diff-mild" onclick="selectDiff('mild')">
+        <div class="diff-card-label" style="color:var(--accent-green)">DIFFICULTY 01</div>
+        <div class="diff-card-name" style="color:var(--accent-green)">MILD</div>
+        <div class="diff-card-desc">Slower failures. Low message volume. Extended battery life. Good for learning the system and understanding constraint tradeoffs without catastrophic failure.</div>
+      </div>
+      <div class="diff-card" id="diff-moderate" onclick="selectDiff('moderate')">
+        <div class="diff-card-label" style="color:var(--warning)">DIFFICULTY 02</div>
+        <div class="diff-card-name" style="color:var(--warning)">MODERATE</div>
+        <div class="diff-card-desc">Standard crisis parameters. Realistic failure rates. Balanced message load. Recommended for most users who have read the node type guide.</div>
+      </div>
+      <div class="diff-card" id="diff-severe" onclick="selectDiff('severe')">
+        <div class="diff-card-label" style="color:var(--critical)">DIFFICULTY 03</div>
+        <div class="diff-card-name" style="color:var(--critical)">SEVERE</div>
+        <div class="diff-card-desc">Rapid cascade failures. 3× message volume. Accelerated battery drain. Designed to expose brittleness in any topology. Most designs will partially fail.</div>
+      </div>
+    </div>
+    <div class="diff-footer"><button class="tutorial-skip" onclick="closeDiffModal()">CANCEL</button><button class="btn-primary" onclick="confirmDiffAndCrisis()">RUN CRISIS →</button></div>
+  </div>
+</div>
+
+<!-- NEXUS TITLE — scrolls to corner logo -->
+<div class="nexus-title" id="nexus-title" role="presentation" aria-hidden="true">
+  <div class="nexus-title-inner">
+    <div class="nexus-title-text" data-text="NEXUS">NEXUS<span class="nexus-title-scan"></span></div>
+    <div class="nexus-title-underline"></div>
+    <div class="nexus-title-tagline">// <span class="acr">N</span>etworked <span class="acr">E</span>mergency e<span class="acr">X</span>change &amp; <span class="acr">U</span>nified <span class="acr">S</span>ignaling</div>
+  </div>
+</div>
+
+<!-- NAV -->
+<nav role="navigation" aria-label="Primary navigation">
+  <div class="nav-brand">
+    <div class="nav-logo" aria-hidden="true">
+      <div class="nav-logo-dot"></div>
+    </div>
+    <span class="nav-brand-text" id="nav-brand-text">NEXUS</span>
+  </div>
+  <div class="nav-status" role="status" aria-label="System status">
+    <div class="status-indicator" title="Mesh network active">
+      <div class="status-dot" aria-hidden="true"></div>
+      <span class="status-indicator-icon" aria-hidden="true">✓</span>
+      MESH ACTIVE
+    </div>
+    <div class="status-indicator" title="Cell network degraded">
+      <div class="status-dot warn" aria-hidden="true"></div>
+      <span class="status-indicator-icon" aria-hidden="true">⚠</span>
+      CELL DEGRADED
+    </div>
+    <div class="status-indicator" title="Internet connection down">
+      <div class="status-dot crit" aria-hidden="true"></div>
+      <span class="status-indicator-icon" aria-hidden="true">✕</span>
+      INTERNET DOWN
+    </div>
+  </div>
+  <nav class="nav-links" aria-label="Section links">
+    <a href="#act1">ACT I  -  DESIGN</a>
+    <a href="#act2">ACT II  -  CRISIS</a>
+    <a href="#portfolio">SYSTEMS STUDY</a>
+  </nav>
+</nav>
+
+<!-- HERO -->
+<section id="hero" aria-label="Hero">
+  <canvas id="city-canvas" aria-hidden="true"></canvas>
+  <div class="hero-overlay" aria-hidden="true"></div>
+  <div class="scan-line" aria-hidden="true"></div>
+
+  <div class="hero-content">
+    <div class="hero-eyebrow animate-in">
+      <div class="hero-eyebrow-line" aria-hidden="true"></div>
+      <span class="hero-eyebrow-text">NEXUS // Networked Emergency Exchange &amp; Unified Signaling</span>
+    </div>
+    <h1 class="hero-headline animate-in delay-1">
+      When the internet dies,<br>
+      <strong>cities fragment.</strong>
+    </h1>
+    <p class="hero-sub animate-in delay-2">
+      An interactive systems study. Design a mesh network in 5 minutes. Watch it face a simulated blackout. Understand why it held  -  or fell apart. No prior knowledge needed.
+    </p>
+    <div class="hero-actions animate-in delay-3">
+      <a href="#act1" class="btn-primary">▶ BEGIN SIMULATION</a>
+      <a href="#portfolio" class="btn-secondary">VIEW SYSTEMS STUDY →</a>
+    </div>
+  </div>
+
+  <div class="hero-bottom-bar" aria-hidden="true">
+    <div class="transmission-ticker" id="ticker">
+      <span class="tick-item accent-green" id="tick-content">RELAY-04 → NODE-12  -  PACKET FORWARDED  -  847ms latency</span>
+    </div>
+    <span style="font-size:10px;color:#3a4a58;letter-spacing:.08em">GRID REF: 28.6139°N 77.2090°E // UPTIME 00:41:17</span>
+  </div>
+</section>
+
+<!-- ACT I — NETWORK DESIGN -->
+<div class="divider"></div>
+<section id="act1" style="background:var(--bg-secondary);padding:5rem 0" aria-label="Act I: Network Design">
+  <div class="section-inner">
+    <div class="section-header" style="margin-bottom:2rem">
+      <div class="section-tag">ACT I // NETWORK DESIGN</div>
+      <h2 class="section-title"><strong>Place nodes.</strong><br>Design for <strong>resilience.</strong></h2>
+      <p class="section-desc">Click the grid to place nodes. Your budget is limited. Coverage gaps will cost lives. Every placement trades cost against reach. Redundancy is expensive; gaps are deadly. Design knowing both will exist.</p>
+    </div>
+
+    <!-- First-time helper -->
+    <div style="background:rgba(88,213,255,.06);border:1px solid rgba(88,213,255,.25);border-left:3px solid var(--accent-blue);padding:1rem 1.25rem;margin-bottom:1.5rem;font-size:11px;color:var(--text-primary);line-height:1.7;font-family:'IBM Plex Sans',sans-serif" role="note">
+      <strong style="color:var(--accent-blue);letter-spacing:.05em">NEW HERE?</strong> &nbsp; Start by reading the four node types below. Then pick a node type from the palette, click empty grid cells to place. Range rings show coverage. Reach 40%+ coverage to unlock Act II.
+    </div>
+
+    <!-- Node type reference -->
+    <div style="background:var(--panel);border:1px solid var(--border);padding:1.5rem;margin-bottom:1.5rem">
+      <div class="label" style="margin-bottom:1.25rem">NODE TYPES  -  UNDERSTAND EACH BEFORE PLACING</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem">
+        <div style="border:1px solid var(--border);padding:1rem;background:var(--surface)">
+          <div style="width:32px;height:32px;border:1px solid #8B98A5;display:grid;place-items:center;margin-bottom:.75rem;color:#8B98A5;font-size:16px" aria-hidden="true">📱</div>
+          <div style="font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--text-primary);margin-bottom:.5rem">CIVILIAN DEVICE</div>
+          <div style="font-size:10px;color:var(--text-muted);line-height:1.6;font-family:'IBM Plex Sans',sans-serif;margin-bottom:.75rem">Smartphones, laptops, tablets. Low range. Many devices = distributed network. Cost: <strong>0 budget</strong>. Capacity: 2 msg/s. Range: 1.5 cells. Battery: 24h.</div>
+          <div style="font-size:9px;color:var(--text-muted);font-style:italic">Best for: dense coverage in residential areas. First to fail during blackout.</div>
+        </div>
+        <div style="border:1px solid var(--border);padding:1rem;background:var(--surface)">
+          <div style="width:32px;height:32px;border:1px solid #58D5FF;display:grid;place-items:center;margin-bottom:.75rem;color:#58D5FF;font-size:16px" aria-hidden="true">📡</div>
+          <div style="font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--text-primary);margin-bottom:.5rem">MESH NODE</div>
+          <div style="font-size:10px;color:var(--text-muted);line-height:1.6;font-family:'IBM Plex Sans',sans-serif;margin-bottom:.75rem">Community-operated WiFi router + LoRa radio. Medium range. Cost: <strong>1 budget</strong>. Capacity: 8 msg/s. Range: 2.5 cells. Battery: 48h.</div>
+          <div style="font-size:9px;color:var(--text-muted);font-style:italic">Best for: neighborhood coordination hubs. Bridges gaps between relays.</div>
+        </div>
+        <div style="border:1px solid var(--border);padding:1rem;background:var(--surface)">
+          <div style="width:32px;height:32px;border:1px solid #7DF9AA;display:grid;place-items:center;margin-bottom:.75rem;color:#7DF9AA;font-size:16px" aria-hidden="true">🔋</div>
+          <div style="font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--text-primary);margin-bottom:.5rem">RELAY HUB</div>
+          <div style="font-size:10px;color:var(--text-muted);line-height:1.6;font-family:'IBM Plex Sans',sans-serif;margin-bottom:.75rem">Rooftop solar + battery + dual radio. Long range. Backbone infrastructure. Cost: <strong>3 budget</strong>. Capacity: 25 msg/s. Range: 4.5 cells. Battery: 72h.</div>
+          <div style="font-size:9px;color:var(--text-muted);font-style:italic">Best for: high-capacity backbone. Critical for city-scale coverage. Most expensive, most resilient.</div>
+        </div>
+        <div style="border:1px solid var(--border);padding:1rem;background:var(--surface)">
+          <div style="width:32px;height:32px;border:1px solid #FFB84D;display:grid;place-items:center;margin-bottom:.75rem;color:#FFB84D;font-size:16px" aria-hidden="true">🏢</div>
+          <div style="font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--text-primary);margin-bottom:.5rem">SHELTER HUB</div>
+          <div style="font-size:10px;color:var(--text-muted);line-height:1.6;font-family:'IBM Plex Sans',sans-serif;margin-bottom:.75rem">Hospital/Emergency shelter with backup power. Stationary. High capacity. Cost: <strong>2 budget</strong>. Capacity: 15 msg/s. Range: 3.5 cells. Battery: 96h.</div>
+          <div style="font-size:9px;color:var(--text-muted);font-style:italic">Best for: critical infrastructure nodes. Survive longest. Last places to go dark.</div>
+        </div>
+      </div>
+      <div style="margin-top:1.25rem;padding:1rem;background:rgba(125,249,170,.07);border-left:3px solid var(--accent-green);font-size:11px;color:var(--text-primary);line-height:1.7;font-family:'IBM Plex Sans',sans-serif">
+        <strong>Design Strategy:</strong> The budget forces tradeoffs. Relays bring range + capacity but cost 3 units each. Nodes are flexible bridges. Devices cover dense areas cheaply but fail first. Shelters anchor the network. No topology is perfect  -  good design accepts some dead zones strategically.
+      </div>
+    </div>
+
+    <!-- How to play -->
+    <div style="background:rgba(125,249,170,.08);border:1px solid rgba(125,249,170,.3);padding:1.25rem;margin-bottom:1.5rem;border-left:3px solid var(--accent-green)" role="note">
+      <div class="label" style="margin-bottom:1rem;color:var(--accent-green)">🎯 HOW TO PLAY  -  ACT I</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem;font-size:11px;color:var(--text-primary);line-height:1.7;font-family:'IBM Plex Sans',sans-serif">
+        <div><strong style="color:var(--accent-green)">1. Pick a node type</strong> from the palette. Each costs budget units.</div>
+        <div><strong style="color:var(--accent-green)">2. Click empty grid cells</strong> to place. Range rings show coverage instantly.</div>
+        <div><strong style="color:var(--accent-green)">3. Watch the constraints</strong>  -  budget, coverage %, dead zones update live.</div>
+        <div><strong style="color:var(--accent-green)">4. Test failures</strong> to see how your design holds up when a node dies.</div>
+        <div><strong style="color:var(--accent-green)">5. Reach 40%+ coverage</strong> to unlock the crisis simulation in Act II.</div>
+      </div>
+      <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid rgba(125,249,170,.2);font-size:11px;color:var(--text-muted);line-height:1.7;font-family:'IBM Plex Sans',sans-serif">
+        <strong style="color:var(--text-primary)">Goal:</strong> Build a resilient mesh on a limited budget. Total coverage isn't required  -  some dead zones are unavoidable. Strategic placement matters more than density.
+      </div>
+    </div>
+
+    <!-- Constraint bar -->
+    <div id="constraint-bar" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1px;background:var(--border);margin-bottom:1.5rem" role="region" aria-label="Network design constraints">
+      <div style="background:var(--panel);padding:.75rem 1rem">
+        <div class="label" style="margin-bottom:.3rem">BUDGET</div>
+        <div style="font-size:1.2rem;font-weight:600" id="cb-budget" aria-live="polite">12 / 12</div>
+        <div style="font-size:10px;color:var(--text-muted)">units remaining</div>
+      </div>
+      <div style="background:var(--panel);padding:.75rem 1rem">
+        <div class="label" style="margin-bottom:.3rem">COVERAGE</div>
+        <div style="font-size:1.2rem;font-weight:600;color:var(--warning)" id="cb-coverage" aria-live="polite">0%</div>
+        <div style="font-size:10px;color:var(--text-muted)">of grid cells</div>
+      </div>
+      <div style="background:var(--panel);padding:.75rem 1rem">
+        <div class="label" style="margin-bottom:.3rem">BANDWIDTH</div>
+        <div style="font-size:1.2rem;font-weight:600" id="cb-bw" aria-live="polite">0 msg/s</div>
+        <div style="font-size:10px;color:var(--text-muted)">total capacity</div>
+      </div>
+      <div style="background:var(--panel);padding:.75rem 1rem">
+        <div class="label" style="margin-bottom:.3rem">DEAD ZONES</div>
+        <div style="font-size:1.2rem;font-weight:600;color:var(--critical)" id="cb-dead" aria-live="polite">100%</div>
+        <div style="font-size:10px;color:var(--text-muted)">unreachable</div>
+      </div>
+      <div style="background:var(--panel);padding:.75rem 1rem">
+        <div class="label" style="margin-bottom:.3rem">RESILIENCE</div>
+        <div style="font-size:1.2rem;font-weight:600;color:var(--text-muted)" id="cb-resilience" aria-live="polite"> - </div>
+        <div style="font-size:10px;color:var(--text-muted)">single-fail risk</div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 260px;gap:1.5rem;align-items:start">
+      <!-- Canvas -->
+      <div style="position:relative">
+        <canvas id="design-canvas" style="width:100%;display:block;background:var(--panel);border:1px solid var(--border);cursor:crosshair" role="application" aria-label="Network design grid. Click to place selected node type."></canvas>
+        <div id="canvas-placeholder" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:5" aria-hidden="true">
+          <div style="text-align:center;color:rgba(139,152,165,.4);font-family:'IBM Plex Sans',sans-serif">
+            <div style="font-size:32px;margin-bottom:1rem;opacity:.3">📍</div>
+            <div style="font-size:16px;letter-spacing:.05em;font-weight:300">PLACE NODES HERE</div>
+            <div style="font-size:11px;color:rgba(139,152,165,.3);margin-top:.5rem;letter-spacing:.06em">Select node type, then click grid</div>
+          </div>
+        </div>
+        <div id="design-tooltip" style="position:absolute;background:var(--surface);border:1px solid var(--border);padding:.4rem .6rem;font-size:10px;color:var(--text-muted);pointer-events:none;display:none;z-index:10;letter-spacing:.06em" role="tooltip"></div>
+      </div>
+      <!-- Sidebar -->
+      <div style="display:flex;flex-direction:column;gap:1rem">
+        <div style="background:var(--panel);border:1px solid var(--border);padding:1rem">
+          <div class="label" style="margin-bottom:1rem">PLACE NODE TYPE</div>
+          <div id="node-palette" style="display:flex;flex-direction:column;gap:.5rem" role="radiogroup" aria-label="Node type selection"></div>
+        </div>
+        <div style="background:var(--panel);border:1px solid var(--border);padding:1rem">
+          <div class="label" style="margin-bottom:.75rem">ACTIONS</div>
+          <button class="proto-btn" style="margin-bottom:.5rem" id="undo-btn" onclick="undoLast()" disabled>
+            <span>↩ UNDO LAST</span><span style="opacity:.4;font-size:9px">CTRL+Z</span>
+          </button>
+          <button class="proto-btn" style="margin-bottom:.5rem" onclick="setTool('delete')" aria-pressed="false" id="tool-delete">
+            <span>✕ DELETE NODE</span>
+          </button>
+          <button class="proto-btn" style="margin-bottom:.5rem" onclick="clearDesign()">
+            <span>⟳ CLEAR ALL</span>
+          </button>
+          <button class="proto-btn" style="margin-bottom:.5rem" id="save-design-btn" onclick="saveDesign()">
+            <span>💾 SAVE DESIGN A</span>
+          </button>
+          <button class="proto-btn" style="margin-bottom:.5rem" onclick="testFailure()">
+            <span>⚠ TEST NODE FAILURE</span>
+          </button>
+          <button class="proto-btn" style="background:rgba(125,249,170,.12);border-color:var(--accent-green)" onclick="openDiffModal()" id="run-crisis-btn">
+            <span>▶ RUN CRISIS →</span>
+          </button>
+        </div>
+        <div style="background:var(--panel);border:1px solid var(--border);padding:1rem">
+          <div class="label" style="margin-bottom:.75rem">DESIGN LOG</div>
+          <div id="design-log" style="max-height:160px;overflow-y:auto;display:flex;flex-direction:column;gap:.3rem" role="log" aria-label="Design actions log" aria-live="polite"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="coverage-warn" style="margin-top:1rem;padding:.75rem 1rem;background:rgba(255,90,90,.07);border:1px solid rgba(255,90,90,.2);font-size:11px;color:var(--critical);display:none;animation:pulse 1.5s infinite" role="alert">
+      ⚠ <strong>COVERAGE BELOW 40%</strong>  -  Mesh will fail to coordinate responses in most sectors. Add more nodes or accept dead zones as strategic losses. Act II locked until readiness threshold.
+    </div>
+    <div id="design-ready" style="margin-top:1rem;padding:.75rem 1rem;background:rgba(125,249,170,.07);border:1px solid rgba(125,249,170,.2);font-size:11px;color:var(--accent-green);display:none" role="status">
+      ✓ <strong>TOPOLOGY VIABLE</strong>  -  Coverage >40%. Resilience sufficient for crisis simulation. Click RUN CRISIS to proceed to Act II and face your design against real failure cascades.
+    </div>
+    <div id="saved-design-bar" style="margin-top:.75rem;padding:.5rem 1rem;background:rgba(88,213,255,.06);border:1px solid rgba(88,213,255,.2);font-size:10px;color:var(--accent-blue);display:none">
+      💾 <strong>DESIGN A SAVED</strong>  -  Run the crisis, then reset, redesign, and save Design B to compare both topologies side-by-side.
+    </div>
+  </div>
+</section>
+
+<!-- ACT II — CRISIS SIMULATION -->
+<div class="divider"></div>
+<section id="act2" style="background:var(--bg-primary);padding:5rem 0" aria-label="Act II: Crisis Simulation">
+  <div class="section-inner">
+    <div class="section-header" style="margin-bottom:2rem">
+      <div class="section-tag">ACT II // CRISIS SIMULATION</div>
+      <h2 class="section-title">Blackout begins. <strong>Your decisions matter.</strong></h2>
+      <p class="section-desc">The internet is gone. Node failures cascade. Messages queue. Every routing decision trades one urgency against another. There is no perfect outcome  -  only better tradeoffs.</p>
+    </div>
+
+    <!-- Context panel -->
+    <div style="background:var(--panel);border:1px solid var(--border);padding:1.5rem;margin-bottom:1.5rem">
+      <div class="label" style="margin-bottom:1rem">WHAT TO EXPECT  -  THE THREE PHASES OF CRISIS</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1.5rem">
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--accent-green);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.5rem">Hour 0–3 // COLLAPSE</div>
+          <div style="font-size:10px;color:var(--text-muted);line-height:1.7;font-family:'IBM Plex Sans',sans-serif">Power dies. Random devices and nodes go offline. Your mesh shrinks. Coverage gaps widen. First stress test: does your topology survive partial failure?</div>
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--warning);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.5rem">Hour 3–12 // MESSAGE BURST</div>
+          <div style="font-size:10px;color:var(--text-muted);line-height:1.7;font-family:'IBM Plex Sans',sans-serif">Medical emergencies, supply requests, and misinformation flood the network at once. Bandwidth runs scarce. Priority and verification decisions ripple through the system.</div>
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--accent-blue);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.5rem">Hour 12+ // SUSTAINABILITY</div>
+          <div style="font-size:10px;color:var(--text-muted);line-height:1.7;font-family:'IBM Plex Sans',sans-serif">Batteries deplete. Solar recharges relays by day. Message volume stays high. Can your topology sustain through day 2? Battery boost decisions now show their cost.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Control explanation -->
+    <div style="background:var(--panel);border:1px solid var(--border);padding:1.5rem;margin-bottom:1.5rem">
+      <div class="label" style="margin-bottom:1rem">YOUR CONTROL PANEL  -  WHAT EACH DECISION MEANS</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1.5rem">
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--accent-blue);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.5rem">🎯 ROUTING PRIORITY</div>
+          <div style="font-size:10px;color:var(--text-muted);line-height:1.7;font-family:'IBM Plex Sans',sans-serif">Drag items to reorder. Top priority gets bandwidth first. Medical above supply means supply requests wait. Every second matters in emergencies  -  but fairness matters too.</div>
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--warning);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.5rem">✓ VERIFICATION STRICTNESS</div>
+          <div style="font-size:10px;color:var(--text-muted);line-height:1.7;font-family:'IBM Plex Sans',sans-serif">Low = fast but lets misinformation through. High = safe but adds latency to every message. There's no right answer  -  match it to your threat model.</div>
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--accent-green);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.5rem">⚡ BATTERY BOOST</div>
+          <div style="font-size:10px;color:var(--text-muted);line-height:1.7;font-family:'IBM Plex Sans',sans-serif">Spend tomorrow's reserve to amplify today's relay capacity. Irreversible. Blackouts don't end in 12 hours  -  overboost now and relays die when you need them most.</div>
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:600;color:#58D5FF;letter-spacing:.1em;text-transform:uppercase;margin-bottom:.5rem">⏯ ADVANCE PHASE</div>
+          <div style="font-size:10px;color:var(--text-muted);line-height:1.7;font-family:'IBM Plex Sans',sans-serif">Move to the next crisis stage. Messages keep flowing. Failures continue. Your decisions compound. Watch network stability shift based on topology resilience.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stage indicators -->
+    <!-- V4: Prediction panel (shown at hour 3) -->
+    <div id="predict-panel" role="region" aria-label="Prediction checkpoint">
+      <div class="label" style="margin-bottom:.5rem;color:var(--warning)">⏸ PAUSE &amp; PREDICT — Hour 3 Checkpoint</div>
+      <div style="font-size:11px;color:var(--text-muted);line-height:1.6;font-family:'IBM Plex Sans',sans-serif;">Before advancing to Hour 12, predict what will happen to your message delivery rate:</div>
+      <div class="predict-options" id="predict-options">
+        <button class="predict-option" onclick="makePrediction('improve',event)">📈 DELIVERY IMPROVES</button>
+        <button class="predict-option" onclick="makePrediction('same',event)">➡ STAYS SIMILAR</button>
+        <button class="predict-option" onclick="makePrediction('degrade',event)">📉 DELIVERY DEGRADES</button>
+        <button class="predict-option" onclick="makePrediction('collapse',event)">💀 NETWORK COLLAPSES</button>
+      </div>
+      <div class="predict-result" id="predict-result"></div>
+    </div>
+
+    <div id="crisis-stages" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1px;background:var(--border);margin-bottom:1.5rem" role="group" aria-label="Crisis stages">
+      <div class="crisis-stage-cell" id="stage-0" style="background:var(--panel);padding:.75rem 1rem;border-top:2px solid var(--border)">
+        <div class="label">HOUR 0–3</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:.25rem">Infrastructure collapse</div>
+      </div>
+      <div class="crisis-stage-cell" id="stage-1" style="background:var(--panel);padding:.75rem 1rem;border-top:2px solid var(--border)">
+        <div class="label">HOUR 3–12</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:.25rem">Message bursts + misinfo</div>
+      </div>
+      <div class="crisis-stage-cell" id="stage-2" style="background:var(--panel);padding:.75rem 1rem;border-top:2px solid var(--border)">
+        <div class="label">HOUR 12+</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:.25rem">Adaptive coordination</div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 300px;gap:1.5rem;align-items:start">
+      <!-- Crisis canvas -->
+      <div>
+        <canvas id="crisis-canvas" style="width:100%;display:block;background:var(--panel);border:1px solid var(--border)" role="img" aria-label="Live crisis network visualization"></canvas>
+        <div style="margin-top:1rem;background:var(--panel);border:1px solid var(--border);padding:1rem">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem;padding-bottom:.5rem;border-bottom:1px solid var(--border)">
+            <span class="label">LIVE MESSAGE QUEUE</span>
+            <span class="dash-live">ROUTING</span>
+          </div>
+          <div id="msg-queue-feed" style="max-height:140px;overflow-y:auto;display:flex;flex-direction:column;gap:.3rem" role="log" aria-label="Live message routing log" aria-live="polite"></div>
+        </div>
+        <!-- V4: Live decision impact chart -->
+        <div style="margin-top:1rem;background:var(--panel);border:1px solid var(--border);padding:1rem">
+          <div class="label" style="margin-bottom:.5rem">DECISION IMPACT  -  COVERAGE OVER TIME</div>
+          <div class="impact-chart-wrap"><canvas id="impact-chart" aria-label="Coverage over time"></canvas></div>
+          <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--text-muted);margin-top:.3rem;letter-spacing:.08em"><span>H0</span><span>H3</span><span>H12+</span></div>
+        </div>
+      </div>
+      <!-- Controls panel -->
+      <div style="display:flex;flex-direction:column;gap:1rem">
+        <!-- Status -->
+        <div style="background:var(--panel);border:1px solid var(--border);padding:1rem">
+          <div class="label" style="margin-bottom:.75rem">NETWORK STATUS</div>
+          <div style="display:flex;flex-direction:column;gap:.5rem" role="status" aria-live="polite">
+            <div style="display:flex;justify-content:space-between;font-size:11px;padding:.3rem 0;border-bottom:1px solid var(--border)">
+              <span style="color:var(--text-muted)">Nodes alive</span>
+              <span id="cs-nodes" style="font-weight:600"> - </span>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:11px;padding:.3rem 0;border-bottom:1px solid var(--border)">
+              <span style="color:var(--text-muted)">Coverage</span>
+              <span id="cs-coverage" style="font-weight:600"> - </span>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:11px;padding:.3rem 0;border-bottom:1px solid var(--border)">
+              <span style="color:var(--text-muted)">Msgs delivered</span>
+              <span id="cs-delivered" style="font-weight:600;color:var(--accent-green)">0</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:11px;padding:.3rem 0;border-bottom:1px solid var(--border)">
+              <span style="color:var(--text-muted)">Msgs failed</span>
+              <span id="cs-failed" style="font-weight:600;color:var(--critical)">0</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:11px;padding:.3rem 0">
+              <span style="color:var(--text-muted)">Misinfo blocked</span>
+              <span id="cs-misinfo" style="font-weight:600;color:var(--warning)">0</span>
+            </div>
+          </div>
+        </div>
+        <!-- Priority -->
+        <div style="background:var(--panel);border:1px solid var(--border);padding:1rem">
+          <div class="label" style="margin-bottom:.75rem">ROUTING PRIORITY</div>
+          <div style="font-size:10px;color:var(--text-muted);margin-bottom:.75rem;line-height:1.5">Drag to reorder. Top type gets bandwidth first. Second-order effects are real.</div>
+          <div id="priority-list" style="display:flex;flex-direction:column;gap:.4rem" role="listbox" aria-label="Routing priority order"></div>
+          <div id="priority-effect" style="margin-top:.75rem;font-size:10px;color:var(--warning);line-height:1.5;min-height:32px" aria-live="polite"></div>
+        </div>
+        <!-- Verify -->
+        <div style="background:var(--panel);border:1px solid var(--border);padding:1rem">
+          <div class="label" style="margin-bottom:.5rem">VERIFICATION STRICTNESS</div>
+          <div style="font-size:10px;color:var(--text-muted);margin-bottom:.75rem;line-height:1.5">Higher = safer. Slower. Lower = faster. Misinfo leaks through.</div>
+          <input type="range" id="verify-slider" min="1" max="5" value="3" style="width:100%;accent-color:var(--accent-green);background:var(--surface);height:2px;cursor:pointer" aria-label="Verification strictness level" aria-valuemin="1" aria-valuemax="5" aria-valuenow="3">
+          <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--text-muted);margin-top:.4rem;letter-spacing:.08em">
+            <span>FAST / RISKY</span>
+            <span id="verify-label" aria-live="polite">BALANCED</span>
+            <span>SAFE / SLOW</span>
+          </div>
+        </div>
+        <!-- Battery -->
+        <div style="background:var(--panel);border:1px solid var(--border);padding:1rem">
+          <div class="label" style="margin-bottom:.5rem">BATTERY ALLOCATION</div>
+          <div style="font-size:10px;color:var(--text-muted);margin-bottom:.75rem;line-height:1.5">Boost today's relay capacity. Costs tomorrow's reserve. Irreversible.</div>
+          <button class="proto-btn" id="boost-btn" onclick="boostBattery()" style="margin:0;font-size:10px">
+            <span>⚡ BOOST RELAY CAPACITY</span>
+            <span id="boost-cost" style="opacity:.5">−2 RESERVE</span>
+          </button>
+          <div style="display:flex;justify-content:space-between;font-size:10px;margin-top:.5rem;color:var(--text-muted)">
+            <span>Battery reserve</span>
+            <span id="battery-reserve" style="color:var(--accent-green)" aria-live="polite">10 units</span>
+          </div>
+        </div>
+        <!-- Advance -->
+        <button class="proto-btn" id="advance-btn" onclick="advanceCrisisStage()" style="background:rgba(255,184,77,.08);border-color:var(--warning);color:var(--warning)">
+          <span id="advance-label">ADVANCE TO HOUR 3 →</span>
+        </button>
+        <button class="proto-btn" id="skip-btn" onclick="skipToAnalysis()" style="background:rgba(88,213,255,.08);border-color:var(--accent-blue);color:var(--accent-blue)">
+          <span>⏭ SKIP TO ANALYSIS</span>
+        </button>
+        <button class="proto-btn" onclick="endCrisis()" style="background:rgba(125,249,170,.08);border-color:var(--accent-green);color:var(--accent-green);display:none" id="end-crisis-btn">
+          <span>▶ VIEW ANALYSIS →</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ACT II DEEP ANALYSIS — hidden until crisis ends -->
+<div class="divider" id="analysis-divider" style="display:none"></div>
+<section id="analysis-section" style="background:var(--bg-primary);padding:5rem 0;display:none" aria-label="Crisis Analysis">
+  <div class="section-inner">
+    <div class="section-header" style="margin-bottom:2rem">
+      <div class="section-tag">ANALYSIS // POST-CRISIS DEBRIEF</div>
+      <h2 class="section-title">What your topology <strong>actually did under pressure</strong></h2>
+    </div>
+
+    <!-- Placeholder when not yet run -->
+    <div id="analysis-placeholder" style="padding:3rem;text-align:center;background:var(--panel);border:1px solid var(--border)">
+      <div style="font-size:32px;margin-bottom:1rem;opacity:.2">📊</div>
+      <div style="font-size:14px;color:var(--text-muted);letter-spacing:.08em">Complete the crisis simulation to see your network analysis</div>
+    </div>
+
+    <!-- Analysis content — shown after crisis completes -->
+    <div id="analysis-content" style="display:none">
+      <!-- Scores -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1px;background:var(--border);margin-bottom:2rem">
+        <div style="background:var(--panel);padding:1.5rem;text-align:center">
+          <div class="label" style="margin-bottom:.5rem">DELIVERY RATE</div>
+          <div style="font-size:2rem;font-weight:600" id="a-delivery" aria-live="polite"> - </div>
+        </div>
+        <div style="background:var(--panel);padding:1.5rem;text-align:center">
+          <div class="label" style="margin-bottom:.5rem">MISINFO BLOCKED</div>
+          <div style="font-size:2rem;font-weight:600" id="a-misinfo" aria-live="polite"> - </div>
+        </div>
+        <div style="background:var(--panel);padding:1.5rem;text-align:center">
+          <div class="label" style="margin-bottom:.5rem">WORST LATENCY</div>
+          <div style="font-size:2rem;font-weight:600;color:var(--accent-blue)" id="a-latency" aria-live="polite"> - </div>
+        </div>
+        <div style="background:var(--panel);padding:1.5rem;text-align:center">
+          <div class="label" style="margin-bottom:.5rem">RESILIENCE SCORE</div>
+          <div style="font-size:2rem;font-weight:600" id="a-resilience" aria-live="polite"> - </div>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-bottom:2rem">
+        <!-- Failure map -->
+        <div style="background:var(--panel);border:1px solid var(--border);padding:1.25rem">
+          <div class="label" style="margin-bottom:1rem">FAILURE MAP  -  FINAL STATE</div>
+          <canvas id="analysis-canvas" style="width:100%;display:block;border:1px solid var(--border)" aria-label="Network failure map showing which nodes went offline"></canvas>
+        </div>
+        <!-- Stability chart + annotations -->
+        <div style="background:var(--panel);border:1px solid var(--border);padding:1.25rem">
+          <div class="label" style="margin-bottom:1rem">COVERAGE STABILITY OVER TIME</div>
+          <canvas id="stability-chart" style="width:100%;display:block;border:1px solid var(--border)" aria-label="Coverage percentage chart over crisis timeline"></canvas>
+          <div style="margin-top:1rem;font-size:11px;color:var(--text-muted);line-height:1.7;font-family:'IBM Plex Sans',sans-serif" id="tipping-annotation"></div>
+        </div>
+      </div>
+
+      <!-- V4: Topology-specific insight -->
+      <div style="background:var(--panel);border:1px solid var(--border);border-left:3px solid var(--accent-green);padding:1.5rem;margin-bottom:1.5rem">
+        <div class="label" style="margin-bottom:.75rem;color:var(--accent-green)">TOPOLOGY-SPECIFIC INSIGHT</div>
+        <div id="topology-insight"></div>
+      </div>
+
+      <!-- Counterfactual & emergent -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-bottom:2rem">
+        <div style="background:var(--panel);border:1px solid var(--border);padding:1.25rem">
+          <div class="label" style="margin-bottom:.75rem">COUNTERFACTUAL  -  WHAT WOULD HAVE CHANGED</div>
+          <div style="font-size:11px;color:var(--text-muted);line-height:1.7;font-family:'IBM Plex Sans',sans-serif" id="counterfactual"></div>
+          <!-- V4: Interactive counterfactual -->
+          <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border)">
+            <div style="font-size:10px;color:var(--text-muted);margin-bottom:.5rem;letter-spacing:.08em">TRY: WHAT IF YOU HAD...</div>
+            <div id="cf-buttons" style="display:flex;flex-direction:column;gap:.35rem"></div>
+            <div id="cf-result" style="margin-top:.75rem;font-size:11px;color:var(--accent-green);line-height:1.6;font-family:'IBM Plex Sans',sans-serif;display:none;padding:.5rem;background:rgba(125,249,170,.05);border-left:2px solid var(--accent-green)"></div>
+          </div>
+        </div>
+        <div style="background:var(--panel);border:1px solid var(--border);padding:1.25rem">
+          <div class="label" style="margin-bottom:.75rem">EMERGENT BEHAVIOR ANALYSIS</div>
+          <div style="font-size:11px;color:var(--text-muted);line-height:1.7;font-family:'IBM Plex Sans',sans-serif" id="emergent-analysis"></div>
+        </div>
+      </div>
+
+      <!-- Decision journal -->
+      <div style="background:var(--panel);border:1px solid var(--border);padding:1.25rem;margin-bottom:2rem">
+        <div class="label" style="margin-bottom:.75rem">DECISION JOURNAL  -  EVERY CHOICE YOU MADE</div>
+        <div id="decision-journal" style="max-height:200px;overflow-y:auto;display:flex;flex-direction:column;gap:.25rem" role="log" aria-label="Decision journal"></div>
+      </div>
+
+      <!-- V4: Prediction verdict -->
+      <div id="prediction-verdict" style="display:none;background:var(--surface);border:1px solid var(--border);padding:1.25rem;margin-bottom:1.5rem">
+        <div class="label" style="margin-bottom:.5rem">YOUR PREDICTION — VERDICT</div>
+        <div style="font-size:12px;line-height:1.7;font-family:'IBM Plex Sans',sans-serif" id="prediction-verdict-text"></div>
+      </div>
+
+      <!-- Reset + Compare -->
+      <div style="display:flex;gap:1rem;flex-wrap:wrap;justify-content:center">
+        <button class="btn-primary" onclick="resetAll()">⟳ RESET AND REDESIGN</button>
+        <button class="btn-primary" style="border-color:var(--accent-blue);color:var(--accent-blue);background:rgba(88,213,255,.06)" onclick="saveDesignB()">💾 SAVE AS DESIGN B &amp; COMPARE</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CRISIS RESULTS - ANALYSIS BRIDGE -->
+<div class="divider"></div>
+<section id="crisis-results" style="background:var(--bg-secondary);padding:5rem 0;display:none" aria-label="Crisis Results">
+  <div class="section-inner">
+    <div class="section-header" style="margin-bottom:3rem">
+      <div class="section-tag">OUTCOME // YOUR NETWORK PERFORMED</div>
+      <h2 class="section-title">How your topology <strong>handled the crisis</strong></h2>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1px;background:var(--border);margin-bottom:2rem">
+      <div style="background:var(--panel);padding:2rem;text-align:center">
+        <div class="label" style="margin-bottom:.75rem">DELIVERY RATE</div>
+        <div style="font-size:2.5rem;font-weight:600;color:var(--accent-green)" id="result-delivery" aria-live="polite"> - </div>
+        <div style="font-size:10px;color:var(--text-muted);margin-top:.5rem">Messages that reached destination</div>
+      </div>
+      <div style="background:var(--panel);padding:2rem;text-align:center">
+        <div class="label" style="margin-bottom:.75rem">MISINFO BLOCKED</div>
+        <div style="font-size:2.5rem;font-weight:600;color:var(--warning)" id="result-misinfo" aria-live="polite"> - </div>
+        <div style="font-size:10px;color:var(--text-muted);margin-top:.5rem">False packets quarantined</div>
+      </div>
+      <div style="background:var(--panel);padding:2rem;text-align:center">
+        <div class="label" style="margin-bottom:.75rem">WORST LATENCY</div>
+        <div style="font-size:2.5rem;font-weight:600;color:var(--accent-blue)" id="result-latency" aria-live="polite"> - </div>
+        <div style="font-size:10px;color:var(--text-muted);margin-top:.5rem">Slowest message delay</div>
+      </div>
+      <div style="background:var(--panel);padding:2rem;text-align:center">
+        <div class="label" style="margin-bottom:.75rem">RESILIENCE SCORE</div>
+        <div style="font-size:2.5rem;font-weight:600;color:var(--critical)" id="result-resilience" aria-live="polite"> - </div>
+        <div style="font-size:10px;color:var(--text-muted);margin-top:.5rem">Overall topology strength</div>
+      </div>
+    </div>
+    <div style="background:var(--panel);border:1px solid var(--border);padding:1.5rem;margin-bottom:2rem">
+      <div style="font-size:12px;color:var(--text-muted);line-height:1.8;font-family:'IBM Plex Sans',sans-serif">
+        <strong style="color:var(--text-primary)">What these numbers reveal:</strong> Your design decisions created measurable tradeoffs. High delivery rates required redundancy  -  costly to your budget. Low latency demanded priority queuing  -  risking fairness. Blocking misinformation meant slower routing  -  delaying medical alerts. This is how real infrastructure works: <strong>no decision is neutral, every constraint breeds consequence.</strong>
+      </div>
+    </div>
+    <div style="background:rgba(125,249,170,.08);border:1px solid rgba(125,249,170,.2);border-left:3px solid var(--accent-green);padding:1.5rem;text-align:center">
+      <div style="font-size:12px;color:var(--text-primary);margin-bottom:1rem;font-family:'IBM Plex Sans',sans-serif;line-height:1.7">
+        <strong>Scroll on</strong> to explore the design thinking behind these tradeoffs  -  and why emergency networks treat constraint as a feature, not a limitation.
+      </div>
+      <a href="#portfolio" class="btn-primary" style="display:inline-flex">EXPLORE SYSTEM DESIGN →</a>
+    </div>
+  </div>
+</section>
+
+<!-- PORTFOLIO — SYSTEMS STUDY -->
+<div class="divider"></div>
+<section id="portfolio" style="background:var(--bg-primary);padding:5rem 0" aria-label="Systems Study">
+  <div class="section-inner">
+    <div class="section-header" style="margin-bottom:3rem">
+      <div class="section-tag">SYSTEMS ANALYSIS // HOW IT WORKS</div>
+      <h2 class="section-title">Design thinking <strong>behind decentralized resilience</strong></h2>
+      <p class="section-desc">What this simulation actually demonstrates about emergency networks  -  and why the design decisions were deliberate.</p>
+    </div>
+    <!-- Constraint model -->
+    <div style="background:var(--panel);border:1px solid var(--border);padding:1.75rem;margin-bottom:1.5rem">
+      <div class="label" style="margin-bottom:1.25rem">CONSTRAINT MODEL  -  THE TRADEOFF SPACE</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1.5rem">
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--accent-green);letter-spacing:.08em;margin-bottom:.5rem">COVERAGE vs COST</div>
+          <div style="font-size:11px;color:var(--text-muted);line-height:1.7;font-family:'IBM Plex Sans',sans-serif">More relays expand coverage but exhaust budget. Fewer relays create dead zones that become lethal during emergencies. The optimal topology isn't maximum coverage  -  it's coverage of high-density population corridors with redundant paths.</div>
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--accent-blue);letter-spacing:.08em;margin-bottom:.5rem">SPEED vs TRUST</div>
+          <div style="font-size:11px;color:var(--text-muted);line-height:1.7;font-family:'IBM Plex Sans',sans-serif">Low verification threshold propagates messages fast but allows misinformation to spread. High threshold catches bad actors but slows emergency alerts by 3–8 minutes per hop. This is a real tradeoff with no correct answer  -  context determines optimal threshold.</div>
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--warning);letter-spacing:.08em;margin-bottom:.5rem">TODAY vs TOMORROW</div>
+          <div style="font-size:11px;color:var(--text-muted);line-height:1.7;font-family:'IBM Plex Sans',sans-serif">Battery boosting increases today's message throughput but degrades tomorrow's relay capacity. Blackouts don't resolve in 12 hours. A topology designed to peak on day 1 may completely fail by day 3 when battery reserves are exhausted.</div>
+        </div>
+      </div>
+    </div>
+    <!-- Failure modes -->
+    <div style="background:var(--panel);border:1px solid var(--border);padding:1.75rem;margin-bottom:1.5rem">
+      <div class="label" style="margin-bottom:1.25rem">FAILURE MODE WALKTHROUGH</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1.5rem">
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--critical);letter-spacing:.08em;margin-bottom:.5rem">TOPOLOGY FAILURE: SINGLE POINT</div>
+          <div style="font-size:11px;color:var(--text-muted);line-height:1.7;font-family:'IBM Plex Sans',sans-serif">If your topology has bridges  -  single nodes that connect two large clusters  -  losing that node partitions the network. Both halves can still communicate internally, but cross-partition messages fail silently. This is the most common design failure: it looks robust until the bridge dies.</div>
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--critical);letter-spacing:.08em;margin-bottom:.5rem">SYSTEM FAILURE: CONGESTION COLLAPSE</div>
+          <div style="font-size:11px;color:var(--text-muted);line-height:1.7;font-family:'IBM Plex Sans',sans-serif">During a crisis, message volume spikes 12×. Relays with limited bandwidth queue messages. If medical alerts queue behind lower-priority supply requests, response time degrades. The queue doesn't just slow things  -  it creates the illusion of a functioning network while critical requests silently expire.</div>
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--warning);letter-spacing:.08em;margin-bottom:.5rem">TRUST FAILURE: MISINFORMATION CASCADE</div>
+          <div style="font-size:11px;color:var(--text-muted);line-height:1.7;font-family:'IBM Plex Sans',sans-serif">A flood attack injects 47 identical packets into different mesh entry points. If verification threshold is too low, all 47 propagate before the duplicate detection triggers. By then, false evacuation routes have already reached 80% of nodes. Trust failures propagate faster than corrections.</div>
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--warning);letter-spacing:.08em;margin-bottom:.5rem">RESOURCE FAILURE: BATTERY DEPLETION</div>
+          <div style="font-size:11px;color:var(--text-muted);line-height:1.7;font-family:'IBM Plex Sans',sans-serif">Solar relay nodes maintain capacity in daylight. At night, they run on battery. If battery was depleted in hour 6 boosting throughput, the relay goes dark at hour 18. This creates a time-delayed topology change that the network hasn't planned for  -  and suddenly the bridge node is gone.</div>
+        </div>
+      </div>
+    </div>
+    <!-- Design statement -->
+    <div style="background:var(--surface);border:1px solid var(--border);padding:2rem">
+      <div class="label" style="margin-bottom:1rem">DESIGN STATEMENT</div>
+      <p style="font-size:13px;color:var(--text-primary);line-height:1.9;font-family:'IBM Plex Sans',sans-serif;max-width:800px">
+        NEXUS is a systems design study  -  not a UI exercise. The simulation demonstrates that <strong>decentralized resilience is a constraint propagation problem</strong>: every design decision creates second-order effects that compound under stress. Redundancy costs budget. Speed costs trust. Throughput costs longevity. The goal isn't to optimize a single variable  -  it's to understand which constraints are acceptable to violate, and when.<br><br>
+        This project explores emergency systems design, network topology reasoning, constraint-aware UX, and the mechanics of resilience emergence in adversarial conditions.
+      </p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <span>NEXUS // NETWORKED EMERGENCY EXCHANGE &amp; UNIFIED SIGNALING</span>
+  <span style="color:var(--accent-green);font-weight:600;letter-spacing:.15em">V2.S4 / NEXUS</span>
+  <span style="color:#2a3a48">SYSTEMS DESIGN STUDY  -  SPECULATIVE INFRASTRUCTURE</span>
+</footer>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     INTERACTIVE SYSTEM ENGINE
+     ═══════════════════════════════════════════════════════════════════ -->
+<script>
+'use strict';
+
+// ─── CONSTANTS ────────────────────────────────────────────────────────────────
+const GRID_COLS=16,GRID_ROWS=10,BUDGET_TOTAL=12,COVERAGE_THRESHOLD=40;
+const TITLE_FINAL_SCALE=0.14,TITLE_CORNER_OFFSET_X=28,TITLE_CORNER_OFFSET_Y=14,TITLE_SCROLL_RANGE_RATIO=0.35;
+const CITY_GRID_W=40,CITY_GRID_H=40,CITY_PACKET_SPAWN=8;
+
+// ─── DIFFICULTY CONFIG ────────────────────────────────────────────────────────
+const DIFFICULTY={
+  mild:    {failRate:.15,msgCount:12,msgInterval:700,battDrain:.2, label:'MILD'},
+  moderate:{failRate:.30,msgCount:18,msgInterval:450,battDrain:.4, label:'MODERATE'},
+  severe:  {failRate:.50,msgCount:30,msgInterval:250,battDrain:.8, label:'SEVERE'},
+};
+let currentDiff='moderate';
+
+// ─── STATE ────────────────────────────────────────────────────────────────────
+const SIM={
+  budget:BUDGET_TOTAL,budgetUsed:0,placedNodes:[],selectedTool:null,gridCols:GRID_COLS,gridRows:GRID_ROWS,
+  crisisStage:-1,crisisNodes:[],batteryReserve:10,priorityOrder:['medical','supply','infrastructure'],
+  verifyThreshold:3,delivered:0,failed:0,misinoBlocked:0,decisionLog:[],msgLog:[],stabilityHistory:[],
+  pendingTimeouts:[],complete:false,maxHops:3,crisisRafId:null,
+  undoStack:[],
+  savedDesigns:{a:null,b:null},
+  prediction:null,predictionMade:false,
+  impactData:[],
+};
+
+const NODE_TYPES={
+  device: {label:'CIVILIAN DEVICE',cost:0, bw:2, range:1.5,color:'#8B98A5',border:'#2a3a48',battery:24},
+  node:   {label:'MESH NODE',      cost:1, bw:8, range:2.5,color:'#58D5FF',border:'#2060a0',battery:48},
+  relay:  {label:'RELAY HUB',      cost:3, bw:25,range:4.5,color:'#7DF9AA',border:'#2a8a50',battery:72},
+  shelter:{label:'SHELTER HUB',    cost:2, bw:15,range:3.5,color:'#FFB84D',border:'#806020',battery:96},
+};
+
+let dragPriority=null;
+
+// ─── TUTORIAL ─────────────────────────────────────────────────────────────────
+let tutStep=0;
+const TUT_TOTAL=5;
+function tutNext(){
+  if(tutStep<TUT_TOTAL-1){
+    document.getElementById('tut-'+tutStep).classList.remove('active');
+    tutStep++;
+    document.getElementById('tut-'+tutStep).classList.add('active');
+    updateTutProgress();
+  }
+}
+function tutPrev(){
+  if(tutStep>0){
+    document.getElementById('tut-'+tutStep).classList.remove('active');
+    tutStep--;
+    document.getElementById('tut-'+tutStep).classList.add('active');
+    updateTutProgress();
+  }
+}
+function updateTutProgress(){
+  const prog=document.getElementById('tut-progress');
+  if(!prog)return;
+  prog.innerHTML='';
+  for(let i=0;i<TUT_TOTAL;i++){
+    const pip=document.createElement('div');
+    pip.className='tutorial-pip'+(i<=tutStep?' done':'');
+    prog.appendChild(pip);
+  }
+}
+function closeTutorial(){const el=document.getElementById('tutorial-overlay');if(el)el.style.display='none';}
+function closeTutorialAndStart(){closeTutorial();document.getElementById('act1')?.scrollIntoView({behavior:'smooth'});}
+updateTutProgress();
+
+// ─── DIFFICULTY ───────────────────────────────────────────────────────────────
+function selectDiff(d){
+  currentDiff=d;
+  document.querySelectorAll('.diff-card').forEach(c=>c.classList.remove('selected'));
+  const el=document.getElementById('diff-'+d);if(el)el.classList.add('selected');
+}
+function openDiffModal(){
+  if(!SIM.placedNodes.length){logDesign('ERROR','Place at least one node first',true);return;}
+  const cov=computeCoverageArray(SIM.placedNodes);
+  const pct=Math.round(Array.from(cov).filter(Boolean).length/(GRID_COLS*GRID_ROWS)*100);
+  if(pct<COVERAGE_THRESHOLD){
+    logDesign('BLOCKED','Coverage '+pct+'% below '+COVERAGE_THRESHOLD+'% threshold',true);
+    document.getElementById('coverage-warn').style.display='block';
+    return;
+  }
+  const m=document.getElementById('difficulty-modal');if(m)m.classList.add('open');
+}
+function closeDiffModal(){const m=document.getElementById('difficulty-modal');if(m)m.classList.remove('open');}
+function confirmDiffAndCrisis(){closeDiffModal();startCrisis();}
+
+// ─── UTILITY ─────────────────────────────────────────────────────────────────
+function smoothstep(t){t=Math.max(0,Math.min(1,t));return t*t*(3-2*t);}
+
+function computeCoverageArray(nodes){
+  const coverage=new Uint8Array(GRID_COLS*GRID_ROWS);
+  for(const n of nodes){
+    if(n.alive===false)continue;
+    const r=NODE_TYPES[n.type].range,r2=r*r;
+    for(let row=0;row<GRID_ROWS;row++)for(let col=0;col<GRID_COLS;col++){
+      const dx=col-n.col,dy=row-n.row;
+      if(dx*dx+dy*dy<=r2)coverage[row*GRID_COLS+col]=1;
+    }
+  }
+  return coverage;
+}
+function computeCoverage(){
+  const cov=computeCoverageArray(SIM.crisisNodes);
+  return Math.round(Array.from(cov).filter(Boolean).length/(GRID_COLS*GRID_ROWS)*100);
+}
+function bumpMetric(id){
+  const el=document.getElementById(id);if(!el)return;
+  el.classList.remove('metric-bump');void el.offsetWidth;el.classList.add('metric-bump');
+}
+
+// ─── DESIGN CANVAS ────────────────────────────────────────────────────────────
+const dc=document.getElementById('design-canvas');
+const dctx=dc.getContext('2d');
+let DCW,DCH,cellW,cellH,gridCache=null;
+
+function resizeDC(){
+  const rect=dc.getBoundingClientRect();const dpr=window.devicePixelRatio||1;
+  DCW=dc.width=Math.round(rect.width*dpr);
+  DCH=dc.height=Math.round(rect.width*(GRID_ROWS/GRID_COLS)*dpr);
+  dc.style.height=(DCH/dpr)+'px';
+  cellW=DCW/GRID_COLS;cellH=DCH/GRID_ROWS;
+  gridCache=null;drawDesign();
+}
+function getGridCache(){
+  if(gridCache)return gridCache;
+  const off=document.createElement('canvas');off.width=DCW;off.height=DCH;
+  const c=off.getContext('2d');c.strokeStyle='rgba(30,45,56,.6)';c.lineWidth=.5;
+  for(let i=0;i<=GRID_COLS;i++){c.beginPath();c.moveTo(i*cellW,0);c.lineTo(i*cellW,DCH);c.stroke();}
+  for(let i=0;i<=GRID_ROWS;i++){c.beginPath();c.moveTo(0,i*cellH);c.lineTo(DCW,i*cellH);c.stroke();}
+  gridCache=off;return off;
+}
+function gridToCanvas(col,row){return{x:(col+.5)*cellW,y:(row+.5)*cellH};}
+function canvasToGrid(cx,cy){return{col:Math.floor(cx/cellW),row:Math.floor(cy/cellH)};}
+
+function drawDesign(){
+  if(!DCW)return;
+  dctx.clearRect(0,0,DCW,DCH);dctx.drawImage(getGridCache(),0,0);
+  const coverage=computeCoverageArray(SIM.placedNodes);
+  for(let r=0;r<GRID_ROWS;r++)for(let c=0;c<GRID_COLS;c++){
+    if(coverage[r*GRID_COLS+c]){dctx.fillStyle='rgba(125,249,170,.04)';dctx.fillRect(c*cellW,r*cellH,cellW,cellH);}
+  }
+  for(let i=0;i<SIM.placedNodes.length;i++)for(let j=i+1;j<SIM.placedNodes.length;j++){
+    const a=SIM.placedNodes[i],b=SIM.placedNodes[j];
+    const dx=a.col-b.col,dy=a.row-b.row,dist=Math.sqrt(dx*dx+dy*dy);
+    const maxR=Math.max(NODE_TYPES[a.type].range,NODE_TYPES[b.type].range);
+    if(dist<=maxR*1.1){
+      const pa=gridToCanvas(a.col,a.row),pb=gridToCanvas(b.col,b.row);
+      dctx.beginPath();dctx.moveTo(pa.x,pa.y);dctx.lineTo(pb.x,pb.y);
+      dctx.strokeStyle='rgba(125,249,170,.18)';dctx.lineWidth=1;dctx.stroke();
+    }
+  }
+  for(const n of SIM.placedNodes){
+    const nt=NODE_TYPES[n.type],p=gridToCanvas(n.col,n.row),r=cellW*.32;
+    dctx.beginPath();dctx.arc(p.x,p.y,nt.range*cellW,0,Math.PI*2);dctx.strokeStyle=nt.color+'22';dctx.lineWidth=1;dctx.stroke();
+    dctx.beginPath();dctx.arc(p.x,p.y,r,0,Math.PI*2);dctx.fillStyle=nt.color+'25';dctx.fill();dctx.strokeStyle=nt.color;dctx.lineWidth=1.5;dctx.stroke();
+    dctx.beginPath();dctx.arc(p.x,p.y,r*.35,0,Math.PI*2);dctx.fillStyle=nt.color;dctx.fill();
+    dctx.fillStyle='rgba(232,240,245,.5)';dctx.font=Math.round(cellW*.18)+'px IBM Plex Mono';
+    dctx.textAlign='center';dctx.fillText(n.type.slice(0,3).toUpperCase(),p.x,p.y+r+cellW*.2);dctx.textAlign='left';
+  }
+  updateConstraints(coverage);
+}
+
+function updateConstraints(coverage){
+  const total=GRID_COLS*GRID_ROWS;
+  const covered=coverage?Array.from(coverage).filter(Boolean).length:0;
+  const pct=Math.round(covered/total*100);
+  const budgetLeft=SIM.budget-SIM.budgetUsed;
+  const bw=SIM.placedNodes.reduce((s,n)=>s+NODE_TYPES[n.type].bw,0);
+  const relayCount=SIM.placedNodes.filter(n=>n.type==='relay').length;
+  const resilience=relayCount>=3?'HIGH':relayCount>=2?'MOD':relayCount===1?'LOW':' - ';
+  const resColor=resilience==='HIGH'?'var(--accent-green)':resilience==='MOD'?'var(--warning)':'var(--critical)';
+  const s=(id,val,col)=>{const e=document.getElementById(id);if(!e)return;e.textContent=val;if(col)e.style.color=col;};
+  s('cb-budget',budgetLeft+' / '+SIM.budget,budgetLeft<=2?'var(--warning)':'var(--text-primary)');
+  s('cb-coverage',pct+'%',pct<40?'var(--critical)':pct<70?'var(--warning)':'var(--accent-green)');
+  s('cb-bw',bw+' msg/s');
+  s('cb-dead',(100-pct)+'%',pct>60?'var(--warning)':'var(--critical)');
+  s('cb-resilience',resilience,resColor);
+  const warnEl=document.getElementById('coverage-warn'),readyEl=document.getElementById('design-ready'),runBtn=document.getElementById('run-crisis-btn');
+  if(pct<COVERAGE_THRESHOLD&&SIM.placedNodes.length>0){warnEl.style.display='block';readyEl.style.display='none';runBtn?.classList.remove('glow-pulse');}
+  else if(pct>=COVERAGE_THRESHOLD){warnEl.style.display='none';readyEl.style.display='block';runBtn?.classList.add('glow-pulse');}
+  else{warnEl.style.display='none';readyEl.style.display='none';runBtn?.classList.remove('glow-pulse');}
+}
+
+// ─── UNDO ─────────────────────────────────────────────────────────────────────
+function pushUndo(){
+  SIM.undoStack.push({nodes:SIM.placedNodes.map(n=>({...n})),budgetUsed:SIM.budgetUsed});
+  if(SIM.undoStack.length>30)SIM.undoStack.shift();
+  const btn=document.getElementById('undo-btn');if(btn)btn.disabled=false;
+}
+function undoLast(){
+  if(!SIM.undoStack.length)return;
+  const prev=SIM.undoStack.pop();
+  SIM.placedNodes=prev.nodes;SIM.budgetUsed=prev.budgetUsed;
+  const btn=document.getElementById('undo-btn');if(btn)btn.disabled=!SIM.undoStack.length;
+  if(!SIM.placedNodes.length){const ph=document.getElementById('canvas-placeholder');if(ph)ph.style.display='flex';}
+  logDesign('UNDO','Last action reversed');drawDesign();
+}
+document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='z'){e.preventDefault();undoLast();}});
+
+// ─── PALETTE ─────────────────────────────────────────────────────────────────
+function buildPalette(){
+  const pal=document.getElementById('node-palette');pal.innerHTML='';
+  for(const [key,nt] of Object.entries(NODE_TYPES)){
+    const btn=document.createElement('button');
+    btn.className='proto-btn';btn.id='tool-'+key;
+    btn.setAttribute('role','radio');btn.setAttribute('aria-checked','false');
+    btn.style.cssText='margin:0;font-size:10px;border-color:'+nt.color+';color:'+nt.color+';background:'+nt.color+'15';
+    btn.innerHTML='<span>'+nt.label+'</span><span style="opacity:.5;font-size:9px">'+(nt.cost>0?'−'+nt.cost+' BDG':'FREE')+'</span>';
+    btn.onclick=()=>setTool(key);pal.appendChild(btn);
+  }
+}
+buildPalette();
+
+function setTool(key){
+  SIM.selectedTool=key;
+  document.querySelectorAll('#node-palette .proto-btn').forEach(b=>{b.style.opacity='.5';b.setAttribute('aria-checked','false');});
+  document.getElementById('tool-delete')?.setAttribute('aria-pressed',key==='delete'?'true':'false');
+  const el=document.getElementById('tool-'+key);if(el){el.style.opacity='1';el.setAttribute('aria-checked','true');}
+}
+
+function clearDesign(){
+  pushUndo();SIM.placedNodes=[];SIM.budgetUsed=0;gridCache=null;
+  const ph=document.getElementById('canvas-placeholder');if(ph)ph.style.display='flex';
+  drawDesign();logDesign('CLEARED','All nodes removed. Budget restored.');
+}
+
+// ─── SAVE & COMPARE ───────────────────────────────────────────────────────────
+function saveDesign(){
+  if(!SIM.placedNodes.length){logDesign('ERROR','Place nodes first',true);return;}
+  SIM.savedDesigns.a={nodes:SIM.placedNodes.map(n=>({...n})),budgetUsed:SIM.budgetUsed,results:null};
+  const bar=document.getElementById('saved-design-bar');if(bar)bar.style.display='block';
+  const btn=document.getElementById('save-design-btn');if(btn)btn.innerHTML='<span>✓ DESIGN A SAVED</span>';
+  logDesign('SAVED','Design A saved for comparison');
+}
+
+function saveDesignB(){
+  if(!SIM.savedDesigns.a){alert('Save Design A first in Act I, then run a second crisis before comparing.');return;}
+  SIM.savedDesigns.b={
+    nodes:SIM.placedNodes.map(n=>({...n})),budgetUsed:SIM.budgetUsed,
+    results:{delivered:SIM.delivered,failed:SIM.failed,misinoBlocked:SIM.misinoBlocked,
+             coverage:computeCoverage(),alive:SIM.crisisNodes.filter(n=>n.alive).length,total:SIM.crisisNodes.length}
+  };
+  if(!SIM.savedDesigns.a.results){
+    SIM.savedDesigns.a.results={delivered:SIM.delivered,failed:SIM.failed,misinoBlocked:SIM.misinoBlocked,
+      coverage:computeCoverage(),alive:SIM.crisisNodes.filter(n=>n.alive).length,total:SIM.crisisNodes.length};
+  }
+  showComparison();
+}
+
+function showComparison(){
+  const a=SIM.savedDesigns.a,b=SIM.savedDesigns.b;if(!a||!b)return;
+  const cs=document.getElementById('compare-section');if(!cs)return;
+  cs.style.display='block';
+  const cd=document.getElementById('compare-divider');if(cd)cd.style.display='block';
+
+  function metricRow(label,valA,valB,higherWins){
+    const winA=higherWins?valA>=valB:valA<=valB;
+    const wClass='compare-winner',lClass='compare-loser';
+    return '<div class="compare-metric"><span class="compare-metric-key">'+label+'</span>'
+      +'<span class="'+(valA===valB?'':(winA?wClass:lClass))+'">'+valA+'</span></div>';
+  }
+  function metricRowB(label,valA,valB,higherWins){
+    const winB=higherWins?valB>=valA:valB<=valA;
+    const wClass='compare-winner',lClass='compare-loser';
+    return '<div class="compare-metric"><span class="compare-metric-key">'+label+'</span>'
+      +'<span class="'+(valA===valB?'':(winB?wClass:lClass))+'">'+valB+'</span></div>';
+  }
+
+  const ar=a.results,br=b.results;
+  const aDr=ar?(ar.delivered+ar.failed>0?Math.round(ar.delivered/(ar.delivered+ar.failed)*100):0):0;
+  const bDr=br?(br.delivered+br.failed>0?Math.round(br.delivered/(br.delivered+br.failed)*100):0):0;
+  const aRs=Math.round(aDr*.4+(ar?ar.coverage:0)*.35+(ar?ar.alive/Math.max(1,ar.total):0)*100*.25);
+  const bRs=Math.round(bDr*.4+(br?br.coverage:0)*.35+(br?br.alive/Math.max(1,br.total):0)*100*.25);
+
+  const aHtml=metricRow('Delivery Rate',aDr+'%',bDr+'%',true)+metricRow('Coverage Held',(ar?ar.coverage:0)+'%',(br?br.coverage:0)+'%',true)+metricRow('Misinfo Blocked',(ar?ar.misinoBlocked:0),(br?br.misinoBlocked:0),true)+metricRow('Nodes Survived',(ar?(ar.alive+'/'+ar.total):'0/0'),(br?(br.alive+'/'+br.total):'0/0'),true)+metricRow('Resilience Score',aRs+'/100',bRs+'/100',true);
+  const bHtml=metricRowB('Delivery Rate',aDr+'%',bDr+'%',true)+metricRowB('Coverage Held',(ar?ar.coverage:0)+'%',(br?br.coverage:0)+'%',true)+metricRowB('Misinfo Blocked',(ar?ar.misinoBlocked:0),(br?br.misinoBlocked:0),true)+metricRowB('Nodes Survived',(ar?(ar.alive+'/'+ar.total):'0/0'),(br?(br.alive+'/'+br.total):'0/0'),true)+metricRowB('Resilience Score',aRs+'/100',bRs+'/100',true);
+
+  const ma=document.getElementById('compare-a-metrics');if(ma)ma.innerHTML=aHtml;
+  const mb=document.getElementById('compare-b-metrics');if(mb)mb.innerHTML=bHtml;
+
+  drawCompareCanvas('compare-canvas-a',a.nodes);
+  drawCompareCanvas('compare-canvas-b',b.nodes);
+
+  const margin=Math.abs(aDr-bDr);
+  const winner=aDr>bDr?'A':bDr>aDr?'B':null;
+  const vt=document.getElementById('compare-verdict-text');
+  if(vt)vt.innerHTML=margin<5
+    ?'Both topologies performed within '+margin+'% of each other on delivery rate. The real difference lies in <strong>how</strong> they failed and what they sacrificed — check coverage and node survival above.'
+    :'<strong>Design '+(winner||'neither')+' outperformed</strong> by '+margin+' percentage points on delivery rate. A '+margin+'% gap in a real emergency translates to hundreds of undelivered medical requests. The difference traces directly to topology decisions in Act I — relay placement, coverage density, redundant paths.';
+
+  cs.scrollIntoView({behavior:'smooth'});
+}
+
+function drawCompareCanvas(id,nodes){
+  const canvas=document.getElementById(id);if(!canvas||!nodes||!nodes.length)return;
+  const rect=canvas.getBoundingClientRect();const dpr=window.devicePixelRatio||1;
+  canvas.width=Math.round(rect.width*dpr);canvas.height=Math.round(rect.width*(GRID_ROWS/GRID_COLS)*dpr);
+  canvas.style.height=(canvas.height/dpr)+'px';
+  const ctx=canvas.getContext('2d');const cw=canvas.width/GRID_COLS,ch=canvas.height/GRID_ROWS;
+  ctx.fillStyle='#080D10';ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.strokeStyle='rgba(30,45,56,.4)';ctx.lineWidth=.5;
+  for(let i=0;i<=GRID_COLS;i++){ctx.beginPath();ctx.moveTo(i*cw,0);ctx.lineTo(i*cw,canvas.height);ctx.stroke();}
+  for(let i=0;i<=GRID_ROWS;i++){ctx.beginPath();ctx.moveTo(0,i*ch);ctx.lineTo(canvas.width,i*ch);ctx.stroke();}
+  const cov=computeCoverageArray(nodes);
+  for(let r=0;r<GRID_ROWS;r++)for(let c=0;c<GRID_COLS;c++){
+    if(cov[r*GRID_COLS+c]){ctx.fillStyle='rgba(125,249,170,.05)';ctx.fillRect(c*cw,r*ch,cw,ch);}
+  }
+  for(const n of nodes){
+    const nt=NODE_TYPES[n.type],px=(n.col+.5)*cw,py=(n.row+.5)*ch,rr=cw*.28;
+    ctx.beginPath();ctx.arc(px,py,rr,0,Math.PI*2);ctx.fillStyle=nt.color+'25';ctx.fill();
+    ctx.strokeStyle=nt.color;ctx.lineWidth=1.5;ctx.stroke();
+    ctx.beginPath();ctx.arc(px,py,rr*.35,0,Math.PI*2);ctx.fillStyle=nt.color;ctx.fill();
+  }
+}
+
+// ─── CANVAS INTERACTION ──────────────────────────────────────────────────────
+dc.addEventListener('click',e=>{
+  if(!SIM.selectedTool)return;
+  const rect=dc.getBoundingClientRect();
+  const cx=(e.clientX-rect.left)*(DCW/rect.width),cy=(e.clientY-rect.top)*(DCH/rect.height);
+  const {col,row}=canvasToGrid(cx,cy);
+  if(col<0||col>=GRID_COLS||row<0||row>=GRID_ROWS)return;
+  if(SIM.selectedTool==='delete'){
+    const idx=SIM.placedNodes.findIndex(n=>n.col===col&&n.row===row);
+    if(idx!==-1){pushUndo();const removed=SIM.placedNodes.splice(idx,1)[0];SIM.budgetUsed-=NODE_TYPES[removed.type].cost;logDesign('REMOVED',removed.type.toUpperCase()+' at ('+col+','+row+')');drawDesign();}
+    return;
+  }
+  const nt=NODE_TYPES[SIM.selectedTool];if(!nt)return;
+  if(SIM.budgetUsed+nt.cost>SIM.budget){logDesign('BLOCKED','Insufficient budget for '+SIM.selectedTool,true);return;}
+  if(SIM.placedNodes.find(n=>n.col===col&&n.row===row))return;
+  pushUndo();
+  const id='N'+(SIM.placedNodes.length+1);
+  SIM.placedNodes.push({id,col,row,type:SIM.selectedTool,alive:true,battery:nt.battery,failedAt:null});
+  SIM.budgetUsed+=nt.cost;
+  logDesign('PLACED',SIM.selectedTool.toUpperCase()+' at ('+col+','+row+')  -  '+nt.bw+' msg/s');
+  if(SIM.placedNodes.length===1){const ph=document.getElementById('canvas-placeholder');if(ph)ph.style.display='none';}
+  drawDesign();
+});
+
+let tooltipTimeout=null;
+dc.addEventListener('mousemove',e=>{
+  clearTimeout(tooltipTimeout);
+  tooltipTimeout=setTimeout(()=>{
+    const rect=dc.getBoundingClientRect();
+    const cx=(e.clientX-rect.left)*(DCW/rect.width),cy=(e.clientY-rect.top)*(DCH/rect.height);
+    const {col,row}=canvasToGrid(cx,cy);
+    const node=SIM.placedNodes.find(n=>n.col===col&&n.row===row);
+    const tip=document.getElementById('design-tooltip');
+    if(node){const nt=NODE_TYPES[node.type];tip.style.display='block';tip.style.left=(e.clientX-rect.left+12)+'px';tip.style.top=(e.clientY-rect.top+8)+'px';tip.textContent=node.id+'  -  '+node.type.toUpperCase()+' | BW: '+nt.bw+'msg/s | Range: '+nt.range+' | Battery: '+nt.battery+'h';}
+    else tip.style.display='none';
+  },30);
+});
+dc.addEventListener('mouseleave',()=>{const t=document.getElementById('design-tooltip');if(t)t.style.display='none';});
+
+function logDesign(type,msg,warn){
+  const log=document.getElementById('design-log');if(!log)return;
+  const d=document.createElement('div');
+  d.style.cssText='font-size:10px;padding:.25rem 0;border-bottom:1px solid var(--border);color:'+(warn?'var(--warning)':'var(--text-muted)');
+  d.innerHTML='<span style="color:'+(warn?'var(--warning)':'var(--accent-green)')+'">'+type+'</span>  -  '+msg;
+  log.insertBefore(d,log.firstChild);
+  while(log.children.length>12)log.removeChild(log.lastChild);
+}
+
+function testFailure(){
+  const relays=SIM.placedNodes.filter(n=>n.type==='relay'||n.type==='node');
+  if(!relays.length){logDesign('TEST','No relay/node to test',true);return;}
+  const target=relays[Math.floor(Math.random()*relays.length)];
+  const saved=target.alive;target.alive=false;
+  const coverage=computeCoverageArray(SIM.placedNodes);
+  const lost=Array.from(coverage).filter(v=>!v).length;
+  logDesign('FAILURE TEST',target.id+' offline → '+Math.round(lost/(GRID_COLS*GRID_ROWS)*100)+'% loses coverage');
+  drawFailureTest(target,coverage);
+  const t=setTimeout(()=>{target.alive=saved;drawDesign();},2200);
+  SIM.pendingTimeouts.push(t);
+}
+
+function drawFailureTest(deadNode,coverage){
+  drawDesign();
+  const p=gridToCanvas(deadNode.col,deadNode.row);
+  dctx.beginPath();dctx.arc(p.x,p.y,cellW*.4,0,Math.PI*2);
+  dctx.fillStyle='rgba(255,90,90,.3)';dctx.fill();dctx.strokeStyle='#FF5A5A';dctx.lineWidth=2;dctx.stroke();
+  for(let r=0;r<GRID_ROWS;r++)for(let c=0;c<GRID_COLS;c++){
+    if(!coverage[r*GRID_COLS+c]){dctx.fillStyle='rgba(255,90,90,.08)';dctx.fillRect(c*cellW,r*cellH,cellW,cellH);}
+  }
+}
+
+// ─── A* PATHFINDING ──────────────────────────────────────────────────────────
+function astar(nodes,srcId,dstId){
+  const alive=nodes.filter(n=>n.alive!==false);
+  const byId=Object.fromEntries(alive.map(n=>[n.id,n]));
+  if(!byId[srcId]||!byId[dstId])return null;
+  const adj={};for(const n of alive)adj[n.id]=[];
+  for(let i=0;i<alive.length;i++)for(let j=i+1;j<alive.length;j++){
+    const a=alive[i],b=alive[j];
+    const dx=a.col-b.col,dy=a.row-b.row,dist=Math.sqrt(dx*dx+dy*dy);
+    const maxR=Math.max(NODE_TYPES[a.type]?.range||2,NODE_TYPES[b.type]?.range||2);
+    if(dist<=maxR*1.15){adj[a.id].push(b.id);adj[b.id].push(a.id);}
+  }
+  const h=id=>{const n=byId[id],d=byId[dstId];return n&&d?Math.sqrt((n.col-d.col)**2+(n.row-d.row)**2):999;};
+  const open=new Map([[srcId,{g:0,f:h(srcId),prev:null}]]);const closed=new Set();
+  while(open.size){
+    let cur=null,best=Infinity;
+    for(const [id,v] of open){if(v.f<best){best=v.f;cur=id;}}
+    if(cur===dstId){
+      const path=[];let c=cur;
+      const all=new Map([...open]);
+      while(c){const node=all.get(c);path.unshift(c);c=node?.prev||null;}
+      return path;
+    }
+    const curV=open.get(cur);open.delete(cur);closed.add(cur);
+    for(const nb of(adj[cur]||[])){
+      if(closed.has(nb))continue;
+      const g=curV.g+1,existing=open.get(nb);
+      if(!existing||g<existing.g)open.set(nb,{g,f:g+h(nb),prev:cur});
+    }
+  }
+  return null;
+}
+
+// ─── PREDICTION ──────────────────────────────────────────────────────────────
+function makePrediction(pred,ev){
+  if(SIM.predictionMade)return;
+  SIM.prediction=pred;SIM.predictionMade=true;
+  document.querySelectorAll('.predict-option').forEach(b=>{b.classList.remove('selected');b.disabled=true;});
+  if(ev&&ev.target)ev.target.classList.add('selected');
+  const r=document.getElementById('predict-result');if(r){r.style.display='block';r.textContent='Prediction locked. Advance to see if you were right.';}
+}
+
+function resolvePrediction(finalDelivRate){
+  if(!SIM.prediction)return;
+  const h=SIM.stabilityHistory;
+  const initRate=h.length>0?(h[0].delivered/Math.max(1,h[0].delivered+h[0].failed)*100):50;
+  const actual=finalDelivRate>initRate+5?'improve':finalDelivRate<initRate-5?(finalDelivRate<15?'collapse':'degrade'):'same';
+  const correct=actual===SIM.prediction||(SIM.prediction==='collapse'&&actual==='collapse');
+  const v=document.getElementById('prediction-verdict'),vt=document.getElementById('prediction-verdict-text');
+  if(!v||!vt)return;
+  v.style.display='block';
+  vt.style.color=correct?'var(--accent-green)':'var(--warning)';
+  vt.innerHTML=correct
+    ?'✓ <strong>Correct.</strong> You predicted "'+SIM.prediction+'" and the network did '+actual+' to '+Math.round(finalDelivRate)+'% delivery. Your read on constraint propagation was accurate.'
+    :'✗ <strong>Incorrect.</strong> You predicted "'+SIM.prediction+'" but delivery actually went to '+Math.round(finalDelivRate)+'% ('+actual+'). The gap often reveals hidden assumptions about which nodes carry the most load.';
+}
+
+// ─── IMPACT CHART ─────────────────────────────────────────────────────────────
+function drawImpactChart(){
+  const canvas=document.getElementById('impact-chart');if(!canvas)return;
+  const ctx2=canvas.getContext('2d');const rect=canvas.getBoundingClientRect();if(!rect.width)return;
+  const dpr=window.devicePixelRatio||1;
+  canvas.width=Math.round(rect.width*dpr);canvas.height=Math.round(80*dpr);
+  const W=canvas.width,H=canvas.height;
+  ctx2.fillStyle='#080D10';ctx2.fillRect(0,0,W,H);
+  const data=SIM.impactData;if(data.length<2)return;
+  ctx2.beginPath();
+  data.forEach((v,i)=>{const x=i/(data.length-1)*(W-20)+10,y=H-(v/100)*(H-10)-5;i===0?ctx2.moveTo(x,y):ctx2.lineTo(x,y);});
+  ctx2.strokeStyle='rgba(125,249,170,.7)';ctx2.lineWidth=1.5*dpr;ctx2.stroke();
+  ctx2.lineTo((data.length-1)/(data.length-1)*(W-20)+10,H);ctx2.lineTo(10,H);ctx2.closePath();
+  ctx2.fillStyle='rgba(125,249,170,.04)';ctx2.fill();
+}
+
+// ─── CRISIS ENGINE ────────────────────────────────────────────────────────────
+function startCrisis(){
+  document.getElementById('act2').scrollIntoView({behavior:'smooth'});
+  SIM.crisisNodes=SIM.placedNodes.map(n=>({...n,alive:true,currentBattery:NODE_TYPES[n.type].battery}));
+  SIM.crisisStage=0;SIM.delivered=0;SIM.failed=0;SIM.misinoBlocked=0;
+  SIM.batteryReserve=10;SIM.decisionLog=[];SIM.msgLog=[];SIM.stabilityHistory=[];
+  SIM.priorityOrder=['medical','supply','infrastructure'];SIM.complete=false;SIM.maxHops=3;
+  SIM.prediction=null;SIM.predictionMade=false;SIM.impactData=[];
+  const el=id=>document.getElementById(id);
+  if(el('predict-panel'))el('predict-panel').style.display='none';
+  if(el('predict-result'))el('predict-result').style.display='none';
+  document.querySelectorAll('.predict-option').forEach(b=>{b.classList.remove('selected');b.disabled=false;});
+  if(el('advance-btn')){el('advance-btn').style.display='block';el('advance-label').textContent='ADVANCE TO HOUR 3 →';}
+  if(el('end-crisis-btn'))el('end-crisis-btn').style.display='none';
+  if(el('skip-btn'))el('skip-btn').style.display='block';
+  if(el('boost-btn')){el('boost-btn').disabled=false;el('boost-cost').textContent='−2 RESERVE';}
+  if(el('msg-queue-feed'))el('msg-queue-feed').innerHTML='';
+  buildPriorityUI();updateCrisisStatus();setStageUI(0);
+  resizeCrisisCanvas();
+  if(SIM.crisisRafId)cancelAnimationFrame(SIM.crisisRafId);
+  crisisPackets.length=0;drawCrisis();
+  startCrisisStage(0);
+}
+
+const cc=document.getElementById('crisis-canvas');
+const cctx=cc.getContext('2d');
+let CCW,CCH,crisisGridCache=null;
+
+function resizeCrisisCanvas(){
+  const rect=cc.getBoundingClientRect();const dpr=window.devicePixelRatio||1;
+  CCW=cc.width=Math.round(rect.width*dpr);
+  CCH=cc.height=Math.round(rect.width*(GRID_ROWS/GRID_COLS)*dpr);
+  cc.style.height=(CCH/dpr)+'px';crisisGridCache=null;
+}
+
+function getCrisisGridCache(){
+  if(crisisGridCache)return crisisGridCache;
+  const off=document.createElement('canvas');off.width=CCW;off.height=CCH;
+  const c=off.getContext('2d');const cw=CCW/GRID_COLS,ch=CCH/GRID_ROWS;
+  c.strokeStyle='rgba(30,45,56,.4)';c.lineWidth=.5;
+  for(let i=0;i<=GRID_COLS;i++){c.beginPath();c.moveTo(i*cw,0);c.lineTo(i*cw,CCH);c.stroke();}
+  for(let i=0;i<=GRID_ROWS;i++){c.beginPath();c.moveTo(0,i*ch);c.lineTo(CCW,i*ch);c.stroke();}
+  crisisGridCache=off;return off;
+}
+
+const crisisPackets=[];
+
+function drawCrisis(){
+  if(!CCW){SIM.crisisRafId=requestAnimationFrame(drawCrisis);return;}
+  cctx.clearRect(0,0,CCW,CCH);cctx.drawImage(getCrisisGridCache(),0,0);
+  const cCW=CCW/GRID_COLS,cCH=CCH/GRID_ROWS;
+  const coverage=computeCoverageArray(SIM.crisisNodes);
+  for(let r=0;r<GRID_ROWS;r++)for(let c=0;c<GRID_COLS;c++){
+    cctx.fillStyle=coverage[r*GRID_COLS+c]?'rgba(125,249,170,.05)':'rgba(255,90,90,.08)';
+    cctx.fillRect(c*cCW,r*cCH,cCW,cCH);
+  }
+  for(let i=0;i<SIM.crisisNodes.length;i++)for(let j=i+1;j<SIM.crisisNodes.length;j++){
+    const a=SIM.crisisNodes[i],b=SIM.crisisNodes[j];if(!a.alive||!b.alive)continue;
+    const dx=a.col-b.col,dy=a.row-b.row,dist=Math.sqrt(dx*dx+dy*dy);
+    const maxR=Math.max(NODE_TYPES[a.type].range,NODE_TYPES[b.type].range);
+    if(dist<=maxR*1.1){cctx.beginPath();cctx.moveTo((a.col+.5)*cCW,(a.row+.5)*cCH);cctx.lineTo((b.col+.5)*cCW,(b.row+.5)*cCH);cctx.strokeStyle='rgba(125,249,170,.15)';cctx.lineWidth=1;cctx.stroke();}
+  }
+  for(let i=crisisPackets.length-1;i>=0;i--){
+    const p=crisisPackets[i];p.t+=p.speed;
+    if(p.t>=1){if(p.pathIdx<p.path.length-2){p.pathIdx++;p.t=0;}else{crisisPackets.splice(i,1);continue;}}
+    const aId=p.path[p.pathIdx],bId=p.path[p.pathIdx+1];
+    const an=SIM.crisisNodes.find(n=>n.id===aId),bn=SIM.crisisNodes.find(n=>n.id===bId);
+    if(!an||!bn){crisisPackets.splice(i,1);continue;}
+    const ax=(an.col+.5)*cCW,ay=(an.row+.5)*cCH,bx=(bn.col+.5)*cCW,by=(bn.row+.5)*cCH;
+    const px=ax+(bx-ax)*p.t,py=ay+(by-ay)*p.t;
+    const col=p.type==='medical'?'#FF5A5A':p.type==='supply'?'#FFB84D':p.misinfo?'#8B98A5':'#58D5FF';
+    cctx.beginPath();cctx.arc(px,py,cCW*.15,0,Math.PI*2);cctx.fillStyle=col;cctx.fill();
+  }
+  for(const n of SIM.crisisNodes){
+    const nt=NODE_TYPES[n.type],px=(n.col+.5)*cCW,py=(n.row+.5)*cCH,r=cCW*.28;
+    if(!n.alive){cctx.beginPath();cctx.arc(px,py,r,0,Math.PI*2);cctx.fillStyle='rgba(255,90,90,.15)';cctx.fill();cctx.strokeStyle='#FF5A5A55';cctx.lineWidth=1;cctx.stroke();cctx.fillStyle='#FF5A5A55';cctx.font=Math.round(cCW*.2)+'px IBM Plex Mono';cctx.textAlign='center';cctx.fillText('✕',px,py+4);cctx.textAlign='left';continue;}
+    const battPct=n.currentBattery/nt.battery;
+    cctx.beginPath();cctx.arc(px,py,r*1.3,-Math.PI/2,-Math.PI/2+Math.PI*2*battPct);
+    cctx.strokeStyle=battPct>.5?'rgba(125,249,170,.4)':battPct>.25?'rgba(255,184,77,.4)':'rgba(255,90,90,.6)';cctx.lineWidth=1.5;cctx.stroke();
+    cctx.beginPath();cctx.arc(px,py,r,0,Math.PI*2);cctx.fillStyle=nt.color+'20';cctx.fill();cctx.strokeStyle=nt.color;cctx.lineWidth=1.5;cctx.stroke();
+    cctx.beginPath();cctx.arc(px,py,r*.35,0,Math.PI*2);cctx.fillStyle=nt.color;cctx.fill();
+    cctx.fillStyle='rgba(232,240,245,.4)';cctx.font=Math.round(cCW*.15)+'px IBM Plex Mono';cctx.textAlign='center';cctx.fillText(n.id,px,py+r*1.9);cctx.textAlign='left';
+  }
+  SIM.crisisRafId=requestAnimationFrame(drawCrisis);
+}
+
+function setStageUI(stage){
+  for(let i=0;i<3;i++){
+    const el=document.getElementById('stage-'+i);if(!el)continue;
+    el.style.borderTopColor=i===stage?'var(--accent-green)':i<stage?'var(--text-muted)':'var(--border)';el.style.opacity=i<=stage?'1':'.4';
+  }
+}
+
+function startCrisisStage(stage){
+  const cfg=DIFFICULTY[currentDiff];SIM.crisisStage=stage;setStageUI(stage);
+  if(stage===0){
+    crisisLog('SYS','Internet shutdown confirmed  -  blackout T+00:00','err');
+    crisisLog('SYS','Initiating node failure cascade...','warn');
+    const devices=SIM.crisisNodes.filter(n=>n.type==='device');
+    const others=SIM.crisisNodes.filter(n=>n.type!=='device');
+    const toFail=[...devices,...others.filter(()=>Math.random()<cfg.failRate*.7)];
+    let delay=600;
+    for(const n of toFail.slice(0,Math.max(1,Math.floor(toFail.length*cfg.failRate+.5)))){
+      const t=setTimeout(()=>{
+        n.alive=false;n.failedAt=0;
+        crisisLog('NODE',n.id+' offline  -  power failure','err');
+        SIM.decisionLog.push({stage:0,text:n.id+' failed ('+n.type+')',impact:'Coverage reduced'});
+        updateCrisisStatus();SIM.impactData.push(computeCoverage());drawImpactChart();
+      },delay);
+      SIM.pendingTimeouts.push(t);delay+=300+Math.random()*500;
+    }
+    const al=document.getElementById('advance-label');if(al)al.textContent='ADVANCE TO HOUR 3 →';
+  } else if(stage===1){
+    crisisLog('SYS','T+03:00  -  emergency message burst incoming','warn');
+    const el=document.getElementById('predict-panel');if(el)el.style.display='block';
+    let t=0;
+    for(let i=0;i<cfg.msgCount;i++){
+      const timeout=setTimeout(()=>{
+        const isMisinfo=Math.random()<(1/(SIM.verifyThreshold||1))*.5;
+        const types=['medical','supply','infrastructure'];
+        const type=isMisinfo?'misinfo':types[Math.floor(Math.random()*3)];
+        spawnCrisisMessage(type,isMisinfo);
+        SIM.impactData.push(computeCoverage());drawImpactChart();
+      },t);
+      SIM.pendingTimeouts.push(timeout);t+=cfg.msgInterval+Math.random()*400;
+    }
+    const al=document.getElementById('advance-label');if(al)al.textContent='ADVANCE TO HOUR 12 →';
+  } else if(stage===2){
+    crisisLog('SYS','T+12:00  -  sustained operations. Battery drain accelerating.','ok');
+    const pp=document.getElementById('predict-panel');if(pp)pp.style.display='none';
+    let t=0;const count=Math.floor(cfg.msgCount*1.3);
+    for(let i=0;i<count;i++){
+      const timeout=setTimeout(()=>{
+        const types=['medical','supply','infrastructure'];
+        spawnCrisisMessage(types[Math.floor(Math.random()*3)],false);
+        for(const n of SIM.crisisNodes){
+          if(!n.alive)continue;n.currentBattery=Math.max(0,n.currentBattery-cfg.battDrain);
+          if(n.currentBattery<=0&&n.type!=='shelter'){n.alive=false;n.failedAt=2;crisisLog('NODE',n.id+' battery depleted  -  offline','err');SIM.decisionLog.push({stage:2,text:n.id+' battery depleted',impact:'Route capacity reduced'});}
+        }
+        updateCrisisStatus();SIM.impactData.push(computeCoverage());drawImpactChart();
+      },t);
+      SIM.pendingTimeouts.push(timeout);t+=cfg.msgInterval*1.5+Math.random()*600;
+    }
+    const advBtn=document.getElementById('advance-btn');
+    if(advBtn){advBtn.style.background='rgba(125,249,170,.1)';advBtn.style.borderColor='var(--accent-green)';advBtn.style.color='var(--accent-green)';}
+    const al=document.getElementById('advance-label');if(al)al.textContent='COMPLETE SIMULATION →';
+  }
+  SIM.stabilityHistory.push({stage,coverage:computeCoverage(),delivered:SIM.delivered,failed:SIM.failed});
+}
+
+function spawnCrisisMessage(type,isMisinfo){
+  const alive=SIM.crisisNodes.filter(n=>n.alive);
+  if(alive.length<2){SIM.failed++;bumpMetric('cs-failed');updateCrisisStatus();return;}
+  const src=alive[Math.floor(Math.random()*alive.length)];
+  const dst=alive[Math.floor(Math.random()*alive.length)];if(src.id===dst.id)return;
+  if(isMisinfo){
+    const catchProb=SIM.verifyThreshold/5;
+    if(Math.random()<catchProb){SIM.misinoBlocked++;bumpMetric('cs-misinfo');crisisLog('VERIFY','Misinfo blocked  -  flood pattern detected','warn');updateCrisisStatus();return;}
+    crisisLog('VERIFY','⚠ Misinfo propagated  -  threshold too low','err');
+    SIM.decisionLog.push({stage:SIM.crisisStage,text:'Misinfo leaked through verification',impact:'Trust score degraded'});
+  }
+  const path=astar(SIM.crisisNodes,src.id,dst.id);
+  if(!path||path.length<2){
+    SIM.failed++;bumpMetric('cs-failed');
+    crisisLog('ROUTE',type.toUpperCase()+'  -  no path ('+src.id+'→'+dst.id+')','err');
+    updateCrisisStatus();SIM.stabilityHistory.push({stage:SIM.crisisStage,coverage:computeCoverage(),delivered:SIM.delivered,failed:SIM.failed});return;
+  }
+  const hops=path.length-1;SIM.maxHops=Math.max(SIM.maxHops,hops);
+  const priIdx=SIM.priorityOrder.indexOf(type==='misinfo'?'infrastructure':type);
+  const latency=hops*340+(priIdx>=0?priIdx:1)*200;
+  SIM.delivered++;bumpMetric('cs-delivered');
+  crisisLog('MSG',type.toUpperCase()+' routed '+src.id+'→'+dst.id+' // '+hops+'hop // '+latency+'ms','ok');
+  crisisPackets.push({path,pathIdx:0,t:0,speed:.04,type,misinfo:isMisinfo});
+  if(priIdx===0&&SIM.priorityOrder.indexOf('supply')>0){
+    const pe=document.getElementById('priority-effect');if(pe)pe.textContent='Medical prioritized  -  supply requests delayed ~'+((SIM.priorityOrder.indexOf('supply')+1)*200)+'ms/hop';
+  }
+  updateCrisisStatus();SIM.stabilityHistory.push({stage:SIM.crisisStage,coverage:computeCoverage(),delivered:SIM.delivered,failed:SIM.failed});
+  const feed=document.getElementById('msg-queue-feed');if(!feed)return;
+  const row=document.createElement('div');const col=type==='medical'?'var(--critical)':type==='supply'?'var(--warning)':'var(--accent-blue)';
+  row.style.cssText='font-size:10px;padding:.2rem 0;border-bottom:1px solid var(--border);display:flex;gap:.75rem';
+  row.innerHTML='<span style="color:'+col+';flex-shrink:0">'+type.toUpperCase()+'</span><span style="color:var(--text-muted)">'+src.id+'→'+dst.id+' // '+hops+'hop // '+latency+'ms</span>';
+  feed.insertBefore(row,feed.firstChild);while(feed.children.length>10)feed.removeChild(feed.lastChild);
+}
+
+function updateCrisisStatus(){
+  const alive=SIM.crisisNodes.filter(n=>n.alive).length,pct=computeCoverage();
+  const s=(id,val,col)=>{const e=document.getElementById(id);if(!e)return;e.textContent=val;if(col)e.style.color=col;};
+  s('cs-nodes',alive+' / '+SIM.crisisNodes.length,alive/Math.max(1,SIM.crisisNodes.length)>.7?'var(--accent-green)':'var(--warning)');
+  s('cs-coverage',pct+'%',pct>60?'var(--accent-green)':pct>30?'var(--warning)':'var(--critical)');
+  s('cs-delivered',SIM.delivered);s('cs-failed',SIM.failed);s('cs-misinfo',SIM.misinoBlocked);
+  s('battery-reserve',SIM.batteryReserve+' units',SIM.batteryReserve>6?'var(--accent-green)':SIM.batteryReserve>3?'var(--warning)':'var(--critical)');
+}
+
+function crisisLog(src,msg,cls){
+  const feed=document.getElementById('msg-queue-feed');if(!feed)return;
+  const col=cls==='err'?'var(--critical)':cls==='warn'?'var(--warning)':'var(--accent-green)';
+  const row=document.createElement('div');
+  row.style.cssText='font-size:10px;padding:.2rem 0;border-bottom:1px solid var(--border);display:flex;gap:.75rem';
+  row.innerHTML='<span style="color:'+col+';flex-shrink:0">['+src+']</span><span style="color:var(--text-muted)">'+msg+'</span>';
+  feed.insertBefore(row,feed.firstChild);while(feed.children.length>12)feed.removeChild(feed.lastChild);
+}
+
+function advanceCrisisStage(){if(SIM.crisisStage<2)startCrisisStage(SIM.crisisStage+1);else endCrisis();}
+
+function boostBattery(){
+  if(SIM.batteryReserve<2){const bc=document.getElementById('boost-cost');if(bc)bc.textContent='DEPLETED';const bb=document.getElementById('boost-btn');if(bb)bb.disabled=true;return;}
+  SIM.batteryReserve-=2;
+  for(const n of SIM.crisisNodes){if(n.alive&&(n.type==='relay'||n.type==='shelter'))n.currentBattery=Math.min(NODE_TYPES[n.type].battery,n.currentBattery+12);}
+  SIM.decisionLog.push({stage:SIM.crisisStage,text:'Battery boost applied (+12h to relays)',impact:'Tomorrow reserve −2 units'});
+  crisisLog('SYS','Battery boost applied  -  reserve now '+SIM.batteryReserve+' units','warn');
+  if(SIM.batteryReserve<2){const bc=document.getElementById('boost-cost');if(bc)bc.textContent='DEPLETED';const bb=document.getElementById('boost-btn');if(bb)bb.disabled=true;}
+  updateCrisisStatus();
+}
+
+function buildPriorityUI(){
+  const list=document.getElementById('priority-list');if(!list)return;list.innerHTML='';
+  SIM.priorityOrder.forEach((p,i)=>{
+    const div=document.createElement('div');div.draggable=true;div.dataset.priority=p;div.setAttribute('role','option');
+    div.style.cssText='padding:.4rem .6rem;background:var(--surface);border:1px solid var(--border);cursor:grab;display:flex;justify-content:space-between;align-items:center;font-size:10px;letter-spacing:.1em;text-transform:uppercase;user-select:none';
+    const col=p==='medical'?'var(--critical)':p==='supply'?'var(--warning)':'var(--accent-blue)';
+    div.innerHTML='<span style="color:'+col+'">'+p+'</span><span style="color:var(--text-muted)">#'+(i+1)+'</span>';
+    div.addEventListener('dragstart',e=>{dragPriority=p;e.dataTransfer.effectAllowed='move';});
+    div.addEventListener('dragover',e=>{e.preventDefault();e.dataTransfer.dropEffect='move';});
+    div.addEventListener('drop',e=>{
+      e.preventDefault();if(dragPriority===p)return;
+      const fi=SIM.priorityOrder.indexOf(dragPriority),ti=SIM.priorityOrder.indexOf(p);
+      SIM.priorityOrder.splice(fi,1);SIM.priorityOrder.splice(ti,0,dragPriority);
+      SIM.decisionLog.push({stage:SIM.crisisStage,text:'Priority: '+SIM.priorityOrder.join(' > '),impact:dragPriority+' now #'+(ti+1)});
+      buildPriorityUI();
+    });
+    list.appendChild(div);
+  });
+}
+
+const verifySlider=document.getElementById('verify-slider');
+if(verifySlider)verifySlider.addEventListener('input',e=>{
+  SIM.verifyThreshold=parseInt(e.target.value);
+  const labels=['','FAST/RISKY','LENIENT','BALANCED','STRICT','MAX SAFE'];
+  const vl=document.getElementById('verify-label');if(vl)vl.textContent=labels[SIM.verifyThreshold];
+  e.target.setAttribute('aria-valuenow',SIM.verifyThreshold);
+  SIM.decisionLog.push({stage:SIM.crisisStage,text:'Verification: '+labels[SIM.verifyThreshold],impact:SIM.verifyThreshold<3?'Misinfo risk up':'Latency up'});
+});
+
+function clearPendingTimeouts(){SIM.pendingTimeouts.forEach(t=>clearTimeout(t));SIM.pendingTimeouts=[];}
+
+function skipToAnalysis(){
+  clearPendingTimeouts();SIM.crisisStage=2;
+  const alive=SIM.crisisNodes.filter(n=>n.alive).length,total=Math.max(1,SIM.crisisNodes.length);
+  const sr=alive/total,cr=computeCoverage()/100;
+  SIM.delivered=Math.max(12,Math.floor(24*(0.6+sr*.3+cr*.1)));
+  SIM.failed=Math.max(2,Math.floor(8*(0.4-sr*.2-cr*.1)));
+  SIM.misinoBlocked=Math.max(0,Math.floor(3*(6-SIM.verifyThreshold)));
+  const failCount=Math.floor(Math.random()*(total*.3));
+  for(let i=0;i<failCount;i++){const a=SIM.crisisNodes.filter(n=>n.alive);if(a.length>0)a[Math.floor(Math.random()*a.length)].alive=false;}
+  SIM.decisionLog.push({stage:2,text:'Skipped to outcome analysis',impact:'Realistic results simulated'});
+  SIM.stabilityHistory=[
+    {stage:0,coverage:Math.min(100,computeCoverage()+15),delivered:Math.floor(SIM.delivered*.3),failed:Math.floor(SIM.failed*.4)},
+    {stage:1,coverage:Math.max(0,computeCoverage()-5),delivered:Math.floor(SIM.delivered*.65),failed:Math.floor(SIM.failed*.7)},
+    {stage:2,coverage:computeCoverage(),delivered:SIM.delivered,failed:SIM.failed}
+  ];
+  SIM.impactData=SIM.stabilityHistory.map(d=>d.coverage);
+  const el=id=>document.getElementById(id);
+  if(el('advance-btn'))el('advance-btn').style.display='none';
+  if(el('skip-btn'))el('skip-btn').style.display='none';
+  if(el('end-crisis-btn'))el('end-crisis-btn').style.display='block';
+  SIM.complete=true;showAnalysisSection();generateAnalysis();showCrisisResults();
+  setTimeout(()=>el('crisis-results')?.scrollIntoView({behavior:'smooth'}),300);
+}
+
+function endCrisis(){
+  clearPendingTimeouts();SIM.complete=true;
+  const el=id=>document.getElementById(id);
+  if(el('advance-btn'))el('advance-btn').style.display='none';
+  if(el('skip-btn'))el('skip-btn').style.display='none';
+  if(el('end-crisis-btn'))el('end-crisis-btn').style.display='block';
+  showAnalysisSection();generateAnalysis();showCrisisResults();
+  setTimeout(()=>el('crisis-results')?.scrollIntoView({behavior:'smooth'}),300);
+}
+
+function showAnalysisSection(){
+  const a=document.getElementById('analysis-section');if(a)a.style.display='block';
+  const d=document.getElementById('analysis-divider');if(d)d.style.display='block';
+}
+
+function showCrisisResults(){
+  const section=document.getElementById('crisis-results');if(!section)return;
+  section.style.display='block';
+  const total=SIM.delivered+SIM.failed,delivRate=total>0?Math.round(SIM.delivered/total*100):0;
+  const alive=SIM.crisisNodes.filter(n=>n.alive).length,tn=Math.max(1,SIM.crisisNodes.length);
+  const coverage=computeCoverage(),resScore=Math.round(delivRate*.4+coverage*.35+(alive/tn)*100*.25);
+  const s=(id,val)=>{const e=document.getElementById(id);if(e)e.textContent=val;};
+  s('result-delivery',delivRate+'%');s('result-misinfo',SIM.misinoBlocked);
+  s('result-latency',(SIM.maxHops*340)+'ms');s('result-resilience',resScore);
+}
+
+function generateAnalysis(){
+  const el=id=>document.getElementById(id);
+  if(el('analysis-placeholder'))el('analysis-placeholder').style.display='none';
+  if(el('analysis-content'))el('analysis-content').style.display='block';
+
+  const total=SIM.delivered+SIM.failed;
+  const delivRate=total>0?Math.round(SIM.delivered/total*100):0;
+  const finalCoverage=computeCoverage();
+  const aliveNodes=SIM.crisisNodes.filter(n=>n.alive).length;
+  const totalNodes=Math.max(1,SIM.crisisNodes.length);
+  const resScore=Math.round(delivRate*.4+finalCoverage*.35+(aliveNodes/totalNodes)*100*.25);
+  const failedNodes=SIM.crisisNodes.filter(n=>!n.alive);
+
+  const s=(id,val,col)=>{const e=el(id);if(!e)return;e.textContent=val;if(col)e.style.color=col;};
+  s('a-delivery',delivRate+'%',delivRate>75?'var(--accent-green)':delivRate>50?'var(--warning)':'var(--critical)');
+  s('a-misinfo',SIM.misinoBlocked,SIM.misinoBlocked>3?'var(--accent-green)':'var(--warning)');
+  s('a-latency',(SIM.maxHops*340+(Math.max(0,SIM.priorityOrder.indexOf('medical'))*200))+'ms');
+  s('a-resilience',resScore+'/100',resScore>70?'var(--accent-green)':resScore>45?'var(--warning)':'var(--critical)');
+
+  // Decision journal
+  const jnl=el('decision-journal');if(jnl){
+    jnl.innerHTML='';
+    if(!SIM.decisionLog.length){jnl.innerHTML='<div style="font-size:11px;color:var(--text-muted)">No decisions recorded.</div>';}
+    else SIM.decisionLog.forEach(d=>{
+      const row=document.createElement('div');
+      row.style.cssText='font-size:10px;padding:.3rem .4rem;background:var(--surface);border-left:2px solid var(--border);margin-bottom:.3rem;line-height:1.5';
+      row.innerHTML='<div style="color:var(--text-primary)">'+d.text+'</div><div style="color:var(--text-muted);font-size:9px;margin-top:.1rem">→ '+d.impact+'</div>';
+      jnl.appendChild(row);
+    });
+  }
+
+  // Topology-specific insight
+  const relayCount=SIM.placedNodes.filter(n=>n.type==='relay').length;
+  const shelterCount=SIM.placedNodes.filter(n=>n.type==='shelter').length;
+  const nodeCount=SIM.placedNodes.filter(n=>n.type==='node').length;
+  const deviceCount=SIM.placedNodes.filter(n=>n.type==='device').length;
+  const failedRelays=failedNodes.filter(n=>n.type==='relay').length;
+  const bridgeRisk=relayCount<=1;
+  const tiEl=el('topology-insight');
+  if(tiEl){
+    let insight='';
+    if(bridgeRisk&&failedNodes.length>0){
+      insight='Your topology used only '+relayCount+' relay hub'+(relayCount===1?'':'s')+', creating a single-backbone structure. When '+failedRelays+' relay'+(failedRelays!==1?'s':'')+' failed, large portions of the mesh became unreachable — not just slower, but silently partitioned. Bridge failure is invisible from inside: the network appears to route but messages never arrive. The '+Math.round(failedNodes.length/totalNodes*100)+'% node loss cascaded into a '+(100-finalCoverage)+'% coverage collapse.';
+    } else if(relayCount>=3&&delivRate>70){
+      insight='Your triple-relay backbone created genuine redundancy. When '+failedNodes.length+' node'+(failedNodes.length!==1?'s':'')+' failed, the network rerouted rather than collapsed — adding hops, not dropping messages. A '+delivRate+'% delivery rate under '+DIFFICULTY[currentDiff].label.toLowerCase()+' stress reflects this. Not zero-loss (impossible under crisis), but graceful degradation — which is what real resilience looks like.';
+    } else if(deviceCount>relayCount*3){
+      insight='Your topology was device-heavy — '+deviceCount+' civilian devices against '+relayCount+' relay hub'+(relayCount!==1?'s':'')+'. Civilian devices carry a fatal assumption: external power. During Hour 0–3, the device cluster failed first, forcing the relay backbone to carry disproportionate load beyond its bandwidth ceiling. The '+delivRate+'% delivery rate is the capacity ceiling under that constraint — not a failure, but a structural limit you designed in.';
+    } else if(shelterCount>=2&&aliveNodes/totalNodes>0.7){
+      insight='Shelter hubs anchored your topology effectively. With '+shelterCount+' shelter'+(shelterCount!==1?'s':'')+' providing 96-hour battery reserves, your network maintained sustained capacity when other nodes drained. The '+Math.round(aliveNodes/totalNodes*100)+'% node survival into Hour 12+ is a direct consequence of shelter-grounded design. The tradeoff: lower coverage per budget unit compared to a relay-heavy approach.';
+    } else {
+      insight='Your '+SIM.placedNodes.length+'-node topology ('+relayCount+' relay, '+nodeCount+' node, '+shelterCount+' shelter, '+deviceCount+' device) produced '+delivRate+'% delivery with '+finalCoverage+'% final coverage. '+failedNodes.length+' node'+(failedNodes.length!==1?'s':'')+' went offline — '+(bridgeRisk?'concentrated in ways that partitioned the network':'distributed enough that routing found alternatives')+'. Resilience score: '+resScore+'/100.';
+    }
+    tiEl.textContent=insight;
+  }
+
+  // Analysis canvas
+  const canvas=el('analysis-canvas');
+  if(canvas){
+    const ctx2=canvas.getContext('2d');const ar=canvas.getBoundingClientRect();const dpr=window.devicePixelRatio||1;
+    canvas.width=Math.round(ar.width*dpr);canvas.height=Math.round(ar.width*(GRID_ROWS/GRID_COLS)*dpr);canvas.style.height=(canvas.height/dpr)+'px';
+    const aCW=canvas.width/GRID_COLS,aCH=canvas.height/GRID_ROWS;
+    ctx2.fillStyle='#080D10';ctx2.fillRect(0,0,canvas.width,canvas.height);
+    for(const n of SIM.crisisNodes){
+      const nt=NODE_TYPES[n.type],px=(n.col+.5)*aCW,py=(n.row+.5)*aCH;
+      ctx2.beginPath();ctx2.arc(px,py,aCW*.28,0,Math.PI*2);ctx2.fillStyle=n.alive?nt.color+'40':'#FF5A5A20';ctx2.fill();ctx2.strokeStyle=n.alive?nt.color:'#FF5A5A';ctx2.lineWidth=1;ctx2.stroke();
+      if(!n.alive){ctx2.fillStyle='#FF5A5A88';ctx2.font=Math.round(aCW*.25)+'px IBM Plex Mono';ctx2.textAlign='center';ctx2.fillText('✕',px,py+4);ctx2.textAlign='left';}
+    }
+  }
+
+  // Stability chart
+  const sc=el('stability-chart');
+  if(sc){
+    const sctx=sc.getContext('2d');const sr=sc.getBoundingClientRect();const dpr=window.devicePixelRatio||1;
+    sc.width=Math.round(sr.width*dpr);sc.height=Math.round(120*dpr);sc.style.height='120px';
+    const SW=sc.width,SH=sc.height;
+    sctx.fillStyle='#080D10';sctx.fillRect(0,0,SW,SH);
+    if(SIM.stabilityHistory.length>1){
+      const pts=SIM.stabilityHistory.map((d,i)=>({x:i/(SIM.stabilityHistory.length-1)*(SW-40)+20,y:SH-(d.coverage/100)*(SH-20)-10}));
+      sctx.beginPath();sctx.moveTo(pts[0].x,pts[0].y);for(let i=1;i<pts.length;i++)sctx.lineTo(pts[i].x,pts[i].y);
+      sctx.strokeStyle='rgba(125,249,170,.7)';sctx.lineWidth=1.5*dpr;sctx.stroke();
+      for(let si=0;si<3;si++){
+        const idx=SIM.stabilityHistory.findIndex(d=>d.stage>=si);
+        if(idx>=0&&idx<pts.length){
+          sctx.beginPath();sctx.moveTo(pts[idx].x,0);sctx.lineTo(pts[idx].x,SH);sctx.strokeStyle='rgba(255,184,77,.2)';sctx.lineWidth=1;sctx.setLineDash([4,4]);sctx.stroke();sctx.setLineDash([]);
+          sctx.fillStyle='rgba(139,152,165,.5)';sctx.font=(10*dpr)+'px IBM Plex Mono';sctx.fillText('H'+(si===0?'0':si===1?'3':'12'),pts[idx].x+3,14*dpr);
+        }
+      }
+    }
+  }
+
+  // Tipping annotation
+  const tp=el('tipping-annotation');
+  if(tp)tp.textContent=failedNodes.length>0
+    ?failedNodes.length+' node'+(failedNodes.length!==1?'s':'')+' went offline. '+(bridgeRisk?'Critical: single-relay backbone meant each failure had outsized impact. Coverage dropped '+(100-finalCoverage)+'%.':'Relay redundancy allowed rerouting. Coverage held at '+finalCoverage+'%.')
+    :'All '+totalNodes+' nodes survived. Coverage held at '+finalCoverage+'%. Either well-designed — or try a harder difficulty to find the limits.';
+
+  // Counterfactual (specific to their topology)
+  const cfEl=el('counterfactual');
+  if(cfEl){
+    if(relayCount<3)cfEl.innerHTML='Your '+relayCount+' relay'+(relayCount!==1?'s':'')+' created '+(relayCount<=1?'a single point of failure':'limited redundancy')+'. With '+(3-relayCount)+' more relay'+(3-relayCount!==1?'s':'')+', the backbone would have triple-path coverage — meaning any single relay failure still leaves two active routes. Estimated delivery improvement: ~'+Math.min(delivRate+18,98)+'% vs your actual '+delivRate+'%. Budget cost: '+((3-relayCount)*3)+' additional units.';
+    else if(SIM.verifyThreshold<3)cfEl.innerHTML='Verification at threshold '+SIM.verifyThreshold+' caught '+SIM.misinoBlocked+' packets. At Strict (5): estimated ~'+Math.round(SIM.misinoBlocked*2.4)+' total blocked. Cost: ~'+(SIM.crisisNodes.length>3?340:180)+'ms added latency per hop on every message — real in a coordinated medical response.';
+    else cfEl.innerHTML='Battery reserve ended at '+SIM.batteryReserve+'/10. '+(10-SIM.batteryReserve>0?'The '+(10-SIM.batteryReserve)+' units spent on boosts extended peak throughput. In a 72-hour blackout, relay nodes would deplete around hour ~'+Math.round(36*(SIM.batteryReserve/10))+'.':'Full conservation gives relays maximum longevity. The most common real-world failure: infrastructure works on day 1, collapses on day 3.');
+  }
+
+  // Interactive counterfactual buttons
+  const cfBtns=el('cf-buttons');
+  if(cfBtns){
+    cfBtns.innerHTML='';
+    [{label:'WHAT IF +1 MORE RELAY?',fn:'relay'},{label:'WHAT IF VERIFY SET TO STRICT?',fn:'verify'},{label:'WHAT IF ALL BATTERY CONSERVED?',fn:'battery'}].forEach(opt=>{
+      const btn=document.createElement('button');btn.className='cf-option';btn.textContent=opt.label;
+      btn.onclick=()=>cfSimulate(opt.fn);cfBtns.appendChild(btn);
+    });
+  }
+
+  // Emergent analysis
+  const emEl=el('emergent-analysis');
+  if(emEl){
+    const priTop=SIM.priorityOrder[0];const priDelay=(SIM.priorityOrder.indexOf(SIM.priorityOrder[1])+1)*200;
+    emEl.innerHTML='<strong>1. Priority cascade:</strong> Routing '+priTop+' first added ~'+priDelay+'ms latency to '+SIM.priorityOrder[1]+' requests per hop. With '+SIM.maxHops+' max hops: up to '+(priDelay*SIM.maxHops)+'ms total delay on secondary messages.<br><br><strong>2. '+(bridgeRisk?'Bridge collapse':'Redundant rerouting')+':</strong> '+(bridgeRisk?'Single-relay structure meant node failures partitioned the network — silent drops, not visible slowdowns. Harder to diagnose.':'Relay redundancy allowed A* to find alternative paths when nodes failed. Latency up, but delivery held.')+'<br><br><strong>3. Verification tradeoff:</strong> Threshold '+SIM.verifyThreshold+'/5 blocked '+SIM.misinoBlocked+' misinfo packets. Sophisticated attacks inject diverse content to evade pattern detection — the packets you see caught are the visible fraction.';
+  }
+
+  // Resolve prediction
+  resolvePrediction(delivRate);
+
+  if(el('cf-result'))el('cf-result').style.display='none';
+}
+
+function cfSimulate(type){
+  const cfResult=document.getElementById('cf-result');if(!cfResult)return;
+  const total=SIM.delivered+SIM.failed,dr=total>0?Math.round(SIM.delivered/total*100):0;
+  if(type==='relay'){
+    const boost=Math.min(dr+10+Math.floor(Math.random()*10),98);
+    cfResult.textContent='With 1 more relay: estimated delivery ~'+boost+'% (vs your '+dr+'%). Coverage +'+Math.min(25,100-computeCoverage())+'% and reduced bridge-failure risk. Budget cost: 3 units.';
+  } else if(type==='verify'){
+    const saved=Math.round(SIM.misinoBlocked*1.8),latency=(5-SIM.verifyThreshold)*60;
+    cfResult.textContent='At Strict: ~'+saved+' additional packets blocked (total ~'+(SIM.misinoBlocked+saved)+'). Cost: +'+latency+'ms latency per hop on all messages.';
+  } else {
+    const bRes=10-SIM.batteryReserve,extend=bRes*4;
+    cfResult.textContent='Full conservation: relays last ~'+(72+extend)+'h instead of ~'+(72-bRes*3)+'h. Critical in multi-day blackouts.';
+  }
+  cfResult.style.display='block';
+}
+
+function resetAll(){
+  clearPendingTimeouts();
+  if(SIM.crisisRafId)cancelAnimationFrame(SIM.crisisRafId);SIM.crisisRafId=null;
+  SIM.placedNodes=[];SIM.budgetUsed=0;SIM.crisisNodes=[];SIM.crisisStage=-1;
+  SIM.complete=false;SIM.maxHops=3;SIM.undoStack=[];SIM.impactData=[];
+  SIM.prediction=null;SIM.predictionMade=false;
+  crisisPackets.length=0;gridCache=null;crisisGridCache=null;
+  const el=id=>document.getElementById(id);
+  if(el('analysis-content'))el('analysis-content').style.display='none';
+  if(el('analysis-placeholder'))el('analysis-placeholder').style.display='block';
+  if(el('analysis-section'))el('analysis-section').style.display='none';
+  if(el('analysis-divider'))el('analysis-divider').style.display='none';
+  if(el('advance-btn')){el('advance-btn').style.display='block';el('advance-btn').style.background='';el('advance-btn').style.borderColor='var(--warning)';el('advance-btn').style.color='var(--warning)';}
+  if(el('end-crisis-btn'))el('end-crisis-btn').style.display='none';
+  if(el('skip-btn'))el('skip-btn').style.display='block';
+  if(el('boost-btn')){el('boost-btn').disabled=false;}
+  if(el('boost-cost'))el('boost-cost').textContent='−2 RESERVE';
+  if(el('undo-btn'))el('undo-btn').disabled=true;
+  if(el('msg-queue-feed'))el('msg-queue-feed').innerHTML='';
+  if(el('canvas-placeholder'))el('canvas-placeholder').style.display='flex';
+  if(el('predict-panel'))el('predict-panel').style.display='none';
+  if(el('predict-result'))el('predict-result').style.display='none';
+  if(el('cf-result'))el('cf-result').style.display='none';
+  if(el('save-design-btn'))el('save-design-btn').innerHTML='<span>💾 SAVE DESIGN A</span>';
+  if(el('saved-design-bar'))el('saved-design-bar').style.display='none';
+  document.querySelectorAll('.predict-option').forEach(b=>{b.classList.remove('selected');b.disabled=false;});
+  drawDesign();
+  el('act1')?.scrollIntoView({behavior:'smooth'});
+}
+
+// ─── COMPARISON SECTION HTML (injected if missing) ────────────────────────────
+(function ensureCompareSection(){
+  if(document.getElementById('compare-section'))return;
+  const div=document.createElement('div');
+  div.id='compare-divider';div.style.cssText='height:1px;background:linear-gradient(90deg,#1E2D38,transparent);display:none';
+  const sec=document.createElement('section');
+  sec.id='compare-section';sec.setAttribute('aria-label','Design Comparison');
+  sec.style.cssText='background:var(--bg-secondary);padding:5rem 0;display:none';
+  sec.innerHTML='<div class="section-inner"><div class="section-header" style="margin-bottom:2rem"><div class="section-tag">COMPARISON // TOPOLOGY A vs B</div><h2 class="section-title">Two designs. <strong>Same crisis. Different outcomes.</strong></h2><p class="section-desc">Side-by-side evaluation under identical stress conditions.</p></div><div class="compare-grid" style="margin-bottom:2rem"><div class="compare-cell"><div class="compare-cell-header"><span class="label">DESIGN A</span><span class="compare-badge a">A</span></div><div id="compare-a-metrics"></div><canvas id="compare-canvas-a" style="width:100%;display:block;border:1px solid var(--border);margin-top:1rem" aria-label="Design A"></canvas></div><div class="compare-cell"><div class="compare-cell-header"><span class="label">DESIGN B</span><span class="compare-badge b">B</span></div><div id="compare-b-metrics"></div><canvas id="compare-canvas-b" style="width:100%;display:block;border:1px solid var(--border);margin-top:1rem" aria-label="Design B"></canvas></div></div><div style="background:var(--panel);border:1px solid var(--border);border-left:3px solid var(--accent-blue);padding:1.5rem"><div class="label" style="margin-bottom:.75rem">VERDICT</div><div style="font-size:12px;color:var(--text-primary);line-height:1.8;font-family:IBM Plex Sans,sans-serif" id="compare-verdict-text">Save both designs to see verdict.</div></div></div>';
+  const footer=document.querySelector('footer');
+  if(footer){footer.parentNode.insertBefore(div,footer);footer.parentNode.insertBefore(sec,footer);}
+  else document.body.appendChild(sec);
+})();
+
+// ─── CITY CANVAS ──────────────────────────────────────────────────────────────
+const cityCanvas=document.getElementById('city-canvas');
+const ctx=cityCanvas.getContext('2d');
+let W,H;
+function resizeCity(){W=cityCanvas.width=window.innerWidth;H=cityCanvas.height=window.innerHeight;initCityNodes();}
+const cnodes=[],cedges=[];
+function initCityNodes(){
+  cnodes.length=0;cedges.length=0;
+  const cols=Math.ceil(W/CITY_GRID_W)+2,rows=Math.ceil(H/CITY_GRID_H)+2;
+  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){cnodes.push({x:c*CITY_GRID_W+(Math.random()-.5)*12,y:r*CITY_GRID_H+(Math.random()-.5)*12,pulse:Math.random()*Math.PI*2,type:Math.random()>.85?'relay':Math.random()>.7?'node':'device',dead:Math.random()>.82});}
+  for(let i=0;i<cnodes.length;i++)for(let j=i+1;j<cnodes.length;j++){const dx=cnodes[i].x-cnodes[j].x,dy=cnodes[i].y-cnodes[j].y;if(Math.sqrt(dx*dx+dy*dy)<CITY_GRID_W*1.6&&Math.random()>.4)cedges.push({a:i,b:j,packet:null});}
+  for(let i=0;i<CITY_PACKET_SPAWN;i++){const e=cedges[Math.floor(Math.random()*cedges.length)];if(e)e.packet={t:Math.random(),speed:.002+Math.random()*.003};}
+}
+resizeCity();
+let resizeTimer=null;
+window.addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(resizeCity,150);});
+let scanRing=null,cframe=0;
+function drawCity(){
+  ctx.clearRect(0,0,W,H);cframe++;
+  for(const e of cedges){
+    const a=cnodes[e.a],b=cnodes[e.b];if(a.dead&&b.dead)continue;
+    ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.strokeStyle='rgba(30,45,56,'+(a.dead||b.dead?.03:.07)+')';ctx.lineWidth=.5;ctx.stroke();
+    if(e.packet){e.packet.t+=e.packet.speed;if(e.packet.t>1){e.packet=Math.random()>.7?{t:0,speed:.002+Math.random()*.003}:null;}else{const px=a.x+(b.x-a.x)*e.packet.t,py=a.y+(b.y-a.y)*e.packet.t;ctx.beginPath();ctx.arc(px,py,1.5,0,Math.PI*2);ctx.fillStyle='rgba(125,249,170,.6)';ctx.fill();}}
+  }
+  for(const n of cnodes){
+    n.pulse+=.02;const p=(Math.sin(n.pulse)+1)/2;
+    if(n.dead){ctx.beginPath();ctx.arc(n.x,n.y,1.5,0,Math.PI*2);ctx.fillStyle='rgba(255,90,90,.15)';ctx.fill();continue;}
+    if(n.type==='relay'){ctx.beginPath();ctx.arc(n.x,n.y,3+p*2,0,Math.PI*2);ctx.fillStyle='rgba(125,249,170,'+(0.1+p*.1)+')';ctx.fill();ctx.beginPath();ctx.arc(n.x,n.y,2,0,Math.PI*2);ctx.fillStyle='rgba(125,249,170,.6)';ctx.fill();}
+    else if(n.type==='node'){ctx.beginPath();ctx.arc(n.x,n.y,1.5,0,Math.PI*2);ctx.fillStyle='rgba(88,213,255,'+(0.3+p*.2)+')';ctx.fill();}
+    else{ctx.beginPath();ctx.arc(n.x,n.y,1,0,Math.PI*2);ctx.fillStyle='rgba(139,152,165,.2)';ctx.fill();}
+  }
+  if(cframe%240===0)scanRing={x:W/2,y:H/2,r:0,maxR:Math.max(W,H)};
+  if(scanRing){scanRing.r+=3;ctx.beginPath();ctx.arc(scanRing.x,scanRing.y,scanRing.r,0,Math.PI*2);ctx.strokeStyle='rgba(125,249,170,'+(1-scanRing.r/scanRing.maxR)*.12+')';ctx.lineWidth=1;ctx.stroke();if(scanRing.r>scanRing.maxR)scanRing=null;}
+  requestAnimationFrame(drawCity);
+}
+drawCity();
+
+// ─── TICKER ──────────────────────────────────────────────────────────────────
+const tickMessages=['RELAY-04 → NODE-12  -  PACKET FORWARDED  -  847ms latency','SECTOR-7 DEAD ZONE  -  rerouting via RELAY-02','NODE-147 confirmed MEDICAL EMERGENCY  -  routing active','SYNC complete  -  RELAY-01 ↔ RELAY-05  -  14,832 messages','MISINFO BLOCKED  -  47 duplicate flood packets quarantined','SOLAR input nominal  -  RELAY-01 battery 94%','NEW NODE joined mesh  -  RELAY-06 topology updated','AID CONVOY Route-7 confirmed by 6 independent nodes'];
+let tickIdx=0;
+const tickerInterval=setInterval(()=>{
+  const el=document.getElementById('tick-content');if(!el)return;
+  el.style.opacity='0';setTimeout(()=>{el.textContent=tickMessages[tickIdx++%tickMessages.length];el.style.opacity='1';},300);
+},4000);
+
+// ─── CLEANUP ─────────────────────────────────────────────────────────────────
+window.addEventListener('beforeunload',()=>{clearInterval(tickerInterval);clearPendingTimeouts();if(SIM.crisisRafId)cancelAnimationFrame(SIM.crisisRafId);});
+window.addEventListener('load',()=>setTimeout(()=>{resizeDC();resizeCrisisCanvas();},100));
+window.addEventListener('resize',()=>{gridCache=null;crisisGridCache=null;resizeDC();if(CCW)resizeCrisisCanvas();});
+
+// ─── TITLE SCROLL ─────────────────────────────────────────────────────────────
+(function(){
+  const title=document.getElementById('nexus-title');const navBrand=document.getElementById('nav-brand-text');if(!title)return;
+  let vW=window.innerWidth,vH=window.innerHeight,sr=vH*TITLE_SCROLL_RANGE_RATIO,tW=0,tH=0,dV=false;
+  function upV(){vW=window.innerWidth;vH=window.innerHeight;sr=vH*TITLE_SCROLL_RANGE_RATIO;dV=false;}
+  function enD(){if(dV)return;const r=title.getBoundingClientRect();if(r.width>0){tW=r.width;tH=r.height;dV=true;}}
+  let cP=0,tP=0,isPinned=false,rafId=null;
+  function upT(){
+    cP+=(tP-cP)*.25;if(Math.abs(tP-cP)<.001)cP=tP;
+    const p=smoothstep(cP);enD();
+    const sX=vW/2,sY=vH*.28;
+    const sW=(tW||400)*TITLE_FINAL_SCALE,sH=(tH||200)*TITLE_FINAL_SCALE;
+    const eX=vW-TITLE_CORNER_OFFSET_X-sW/2,eY=TITLE_CORNER_OFFSET_Y+sH/2;
+    const x=sX+(eX-sX)*p,y=sY+(eY-sY)*p,scale=1+(TITLE_FINAL_SCALE-1)*p;
+    title.style.setProperty('--x',x+'px');title.style.setProperty('--y',y+'px');title.style.setProperty('--scale',scale);title.style.setProperty('--p',p);
+    const sp=p>.97;if(sp!==isPinned){isPinned=sp;title.classList.toggle('pinned',isPinned);if(navBrand)navBrand.classList.toggle('hidden',isPinned);}
+    if(cP!==tP)rafId=requestAnimationFrame(upT);else rafId=null;
+  }
+  function onScroll(){tP=Math.max(0,Math.min(1,window.scrollY/sr));if(!rafId)rafId=requestAnimationFrame(upT);}
+  window.addEventListener('scroll',onScroll,{passive:true});window.addEventListener('resize',()=>{upV();onScroll();});
+  upV();onScroll();setTimeout(onScroll,100);setTimeout(()=>{dV=false;onScroll();},500);
+})();
+</script>
+
+</body>
+</html>

@@ -52,6 +52,9 @@ Single-file HTML/CSS/JavaScript. No dependencies, no build step.
 
 Goal was to build a teaching tool that makes systems design constraints visible through play. Developed iteratively: V2 (base), V3 (polish + accessibility), V4 - the current active one, (full feature set with comparison, prediction, analysis).
 
+## Author
+Built and maintained by Supreeth - V2.S4 / A project exploring design constraints of decentralized communication infrastructure when centralized systems fail.
+
 ---
 
 **Deploy, play, share.**
